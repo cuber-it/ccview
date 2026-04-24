@@ -3,12 +3,12 @@ CLAUDE.md
 .claude/
 docs/
 
-# Build-Artefakte
-build/
-bin/
-dist/
-ccview
-ccview-*
+# Build-Artefakte (root-binary, nicht cmd/ccview/)
+/build/
+/bin/
+/dist/
+/ccview
+/ccview-*
 *.exe
 
 # Go
