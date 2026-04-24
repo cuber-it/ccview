@@ -66,19 +66,19 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 		return err
 	}
 	projectDir := session.ProjectDirFromCwd(cwd)
-	sessions, err := session.List(projectsRoot, projectDir)
-	if err != nil {
-		return fmt.Errorf("cannot list sessions for %s: %w", projectDir, err)
-	}
 
-	if sessSpec == "" {
-		printSessionList(sessions, projectDir)
-		return nil
-	}
-
-	info, err := session.Resolve(sessions, sessSpec)
-	if err != nil {
-		return err
+	var initial session.Info
+	hasInitial := false
+	if sessSpec != "" {
+		sessions, err := session.List(projectsRoot, projectDir)
+		if err != nil {
+			return fmt.Errorf("cannot list sessions for %s: %w", projectDir, err)
+		}
+		initial, err = session.Resolve(sessions, sessSpec)
+		if err != nil {
+			return err
+		}
+		hasInitial = true
 	}
 
 	ln, addr, err := listenWithFallback(bind, port)
@@ -87,7 +87,11 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 	}
 	url := fmt.Sprintf("http://%s", addr)
 
-	fmt.Printf("ccview: session %s\nccview: %s\n", info.ID, url)
+	if hasInitial {
+		fmt.Printf("ccview: session %s\nccview: %s\n", initial.ID, url)
+	} else {
+		fmt.Printf("ccview: %s (Session im Browser wählen)\n", url)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -100,27 +104,32 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 		cancel()
 	}()
 
-	s := srv.New(srv.Config{
-		ProjectsRoot:     projectsRoot,
-		ProjectDir:       projectDir,
-		CurrentSessionID: info.ID,
-	})
+	cfg := srv.Config{
+		ProjectsRoot: projectsRoot,
+		ProjectDir:   projectDir,
+		Version:      version,
+	}
+	if hasInitial {
+		cfg.CurrentSessionID = initial.ID
+	}
+	s := srv.New(cfg)
 
 	if !noBrowser {
 		go openBrowser(url)
 	}
 
-	// Kick off the initial tailer once Serve has stored the lifetime context.
-	go func() {
-		for i := 0; i < 100; i++ {
-			if err := s.SetSession(info); err == nil {
-				return
+	if hasInitial {
+		go func() {
+			for i := 0; i < 100; i++ {
+				if err := s.SetSession(initial); err == nil {
+					return
+				}
+				time.Sleep(5 * time.Millisecond)
 			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		fmt.Fprintln(os.Stderr, "ccview: failed to start initial tailer")
-		cancel()
-	}()
+			fmt.Fprintln(os.Stderr, "ccview: failed to start initial tailer")
+			cancel()
+		}()
+	}
 
 	return s.Serve(ctx, ln)
 }
@@ -165,33 +174,3 @@ func openBrowser(url string) {
 	_ = cmd.Start()
 }
 
-func printSessionList(sessions []session.Info, projectDir string) {
-	if len(sessions) == 0 {
-		fmt.Printf("ccview: no sessions found in ~/.claude/projects/%s\n", projectDir)
-		return
-	}
-	fmt.Printf("%-8s  %-19s  %8s  %s\n", "ID", "Last Event", "Size", "Path")
-	for _, s := range sessions {
-		t := s.LastEventTime
-		if t.IsZero() {
-			t = s.ModTime
-		}
-		fmt.Printf("%-8s  %-19s  %8s  %s\n",
-			s.ID[:8],
-			t.Local().Format("2006-01-02 15:04:05"),
-			fmtSize(s.Size),
-			s.Path,
-		)
-	}
-}
-
-func fmtSize(n int64) string {
-	switch {
-	case n < 1024:
-		return fmt.Sprintf("%dB", n)
-	case n < 1024*1024:
-		return fmt.Sprintf("%.1fK", float64(n)/1024)
-	default:
-		return fmt.Sprintf("%.1fM", float64(n)/(1024*1024))
-	}
-}

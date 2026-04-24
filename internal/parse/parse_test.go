@@ -159,6 +159,34 @@ func TestParse_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestParse_QueueOperationEnqueue(t *testing.T) {
+	line := []byte(`{"type":"queue-operation","operation":"enqueue","content":"interrupt text","sessionId":"s1","timestamp":"2026-04-24T10:00:00Z"}`)
+	ev, err := Parse(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.Kind != KindUser {
+		t.Errorf("Kind = %q, want user (interrupt surfaced as user)", ev.Kind)
+	}
+	if len(ev.Blocks) != 1 || ev.Blocks[0].Kind != BlockUserPrompt {
+		t.Fatalf("expected one user_prompt block, got %+v", ev.Blocks)
+	}
+	if ev.Blocks[0].Text != "interrupt text" {
+		t.Errorf("Text = %q", ev.Blocks[0].Text)
+	}
+}
+
+func TestParse_QueueOperationRemove(t *testing.T) {
+	line := []byte(`{"type":"queue-operation","operation":"remove","sessionId":"s1"}`)
+	ev, err := Parse(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ev.Blocks) != 0 {
+		t.Errorf("remove op should produce no blocks, got %+v", ev.Blocks)
+	}
+}
+
 func TestParse_ToolResultError(t *testing.T) {
 	line := []byte(`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"boom","is_error":true}]}}`)
 	ev, err := Parse(line)

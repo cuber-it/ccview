@@ -40,13 +40,15 @@ type Server struct {
 	currentSessionID string
 	pumpCancel       context.CancelFunc
 	rootCtx          context.Context
+	version          string
 }
 
 // Config holds the project context needed to list sibling sessions.
 type Config struct {
 	ProjectsRoot     string // e.g. ~/.claude/projects
 	ProjectDir       string // e.g. -home-ucuber-Workspace-foo
-	CurrentSessionID string // full UUID of the initially-viewed session
+	CurrentSessionID string // full UUID of the initially-viewed session (may be empty)
+	Version          string // build version for /api/version
 }
 
 // New constructs a Server with its own Hub. cfg may be zero-valued; in that
@@ -58,6 +60,7 @@ func New(cfg Config) *Server {
 		projectsRoot:     cfg.ProjectsRoot,
 		projectDir:       cfg.ProjectDir,
 		currentSessionID: cfg.CurrentSessionID,
+		version:          cfg.Version,
 	}
 	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
@@ -68,7 +71,17 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/switch", s.handleSwitch)
 	s.mux.HandleFunc("/api/export", s.handleExport)
+	s.mux.HandleFunc("/api/version", s.handleVersion)
 	return s
+}
+
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	v := s.version
+	if v == "" {
+		v = "dev"
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"version": v})
 }
 
 // SetSession stops the current tailer (if any) and starts a new one on path.

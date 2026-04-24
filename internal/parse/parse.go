@@ -64,6 +64,10 @@ type rawLine struct {
 	ParentUUID string      `json:"parentUuid"`
 	SessionID  string      `json:"sessionId"`
 	Message    *rawMessage `json:"message"`
+
+	// queue-operation events (interrupt prompts)
+	Operation string `json:"operation"`
+	Content   string `json:"content"`
 }
 
 type rawMessage struct {
@@ -108,6 +112,15 @@ func Parse(line []byte) (Event, error) {
 		if ts, err := time.Parse(time.RFC3339Nano, raw.Timestamp); err == nil {
 			ev.Timestamp = ts
 		}
+	}
+	// Interrupt prompts are stored as queue-operation enqueue events;
+	// surface them as regular user prompts so they appear in the viewer.
+	if raw.Type == "queue-operation" {
+		if raw.Operation == "enqueue" && raw.Content != "" {
+			ev.Kind = KindUser
+			ev.Blocks = []Block{{Kind: BlockUserPrompt, Text: raw.Content}}
+		}
+		return ev, nil
 	}
 	if raw.Message != nil {
 		ev.Blocks = extractBlocks(ev.Kind, raw.Message)

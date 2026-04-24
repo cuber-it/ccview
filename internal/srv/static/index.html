@@ -92,7 +92,7 @@
   }
 
   /* ---------- Base ---------- */
-  :root { --toolbar-h: 36px; --favbar-h: 36px; --chrome-h: 72px; /* toolbar + favbar */ }
+  :root { --toolbar-h: 36px; --favbar-h: 36px; --bottombar-h: 36px; --chrome-h: 72px; /* toolbar + favbar */ }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
   html { scroll-padding-top: calc(var(--chrome-h) + 12px); }
@@ -202,7 +202,7 @@
   /* Jump-to-live pill */
   .jump-live {
     position: fixed;
-    bottom: 22px;
+    bottom: calc(var(--bottombar-h) + 14px);
     right: 28px;
     background: var(--tool-accent);
     color: #111;
@@ -236,6 +236,47 @@
     outline: none;
   }
   .prompt-filter:focus { border-color: var(--tool-accent); }
+
+  /* Modal (about) */
+  .modal { position: fixed; inset: 0; z-index: 300; }
+  .modal[hidden] { display: none; }
+  .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); }
+  .modal-body {
+    position: relative;
+    max-width: 440px;
+    margin: 14vh auto 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 26px 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal-body h2 { margin: 0 0 4px 0; font-size: 18px; }
+  .modal-body h2 .ver { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 6px; }
+  .modal-body p { margin: 10px 0; font-size: 13px; }
+  .modal-body ul { list-style: none; padding: 0; margin: 10px 0 14px 0; }
+  .modal-body ul li {
+    margin: 4px 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 12px;
+  }
+  .modal-body ul li a { color: var(--link); text-decoration: none; }
+  .modal-body ul li a:hover { text-decoration: underline; }
+  .modal-body .modal-license { color: var(--muted); font-size: 11px; margin-top: 14px; }
+  .modal-body .modal-close {
+    margin-top: 12px;
+    background: var(--tool-accent);
+    color: #101010;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+  }
+  [data-theme="light"] .modal-body .modal-close,
+  [data-theme="sepia"] .modal-body .modal-close { color: #fff; }
   .brand { font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
   .theme-switch { display: inline-flex; gap: 4px; }
   .theme-switch button {
@@ -512,10 +553,42 @@
   .container {
     max-width: 860px;
     margin: 0 auto 0 220px;
-    padding: calc(var(--chrome-h) + 12px) 24px 80px;
+    padding: calc(var(--chrome-h) + 12px) 24px calc(var(--bottombar-h) + 32px);
     transition: margin-left 0.15s;
   }
   body.sp-collapsed .container { margin-left: 28px; }
+
+  /* Bottom command bar */
+  .bottombar {
+    position: fixed;
+    bottom: 0; left: 220px; right: 0;
+    height: var(--bottombar-h);
+    display: flex;
+    gap: 6px;
+    padding: 0 12px;
+    background: var(--status-bg);
+    border-top: 1px solid var(--border);
+    align-items: center;
+    z-index: 80;
+    font-size: 11px;
+    transition: left 0.15s;
+  }
+  body.sp-collapsed .bottombar { left: 28px; }
+  .bottombar button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .bottombar button:hover { color: var(--fg); border-color: var(--fg); }
+  .bottombar button.active { color: var(--tool-accent); border-color: var(--tool-accent); }
+  .bottombar .spacer { flex: 1; }
+  .bottombar .hint { color: var(--muted); font-size: 10px; }
   .event {
     margin-bottom: 22px;
     padding: 14px 18px;
@@ -725,6 +798,8 @@
     <div class="menu-items" id="menuItems">
       <button data-action="save">Speichern</button>
       <button data-action="save-as">Speichern unter…</button>
+      <div class="sep"></div>
+      <button data-action="about">Über ccview</button>
     </div>
   </div>
 </div>
@@ -735,6 +810,27 @@
   <button id="searchClose" title="schließen">×</button>
 </div>
 <button class="jump-live" id="jumpLive" title="Zu Live springen">↓ Live</button>
+<div class="bottombar" id="bottombar">
+  <button data-action="scroll-pause" id="scrollPauseBtn" title="Auto-Scroll ein-/ausschalten">⏸ Scroll</button>
+  <button data-action="top" title="Anfang (gg)">⇈ Anfang</button>
+  <button data-action="bottom" title="Live / Ende (G)">⇊ Live</button>
+  <span class="spacer"></span>
+  <span class="hint">/ suchen · j/k Prompt · gg/G Start/Ende · Esc</span>
+</div>
+<div class="modal" id="aboutModal" hidden>
+  <div class="modal-backdrop" data-modal-close="1"></div>
+  <div class="modal-body">
+    <h2>ccview <span class="ver" id="verSpan">v…</span></h2>
+    <p>Live-Viewer für Claude Code Sessions.</p>
+    <p>Gebaut von <strong>Ulrich Cuber</strong> &middot; cuber IT service</p>
+    <ul>
+      <li><a href="https://www.uc-it.de" target="_blank" rel="noopener">www.uc-it.de</a></li>
+      <li><a href="https://github.com/cuber-it/ccview" target="_blank" rel="noopener">github.com/cuber-it/ccview</a></li>
+    </ul>
+    <p class="modal-license">Lizenz: Apache 2.0</p>
+    <button class="modal-close" data-modal-close="1">Schließen</button>
+  </div>
+</div>
 <aside class="sidepanel">
   <button class="sidepanel-toggle" id="panelToggle" title="Panel ein-/ausklappen">«</button>
   <div class="sidepanel-tabs" id="sidepanelTabs">
@@ -812,6 +908,24 @@
     }
   };
 
+  // ---------- about modal ----------
+  const aboutModal = document.getElementById("aboutModal");
+  const verSpan = document.getElementById("verSpan");
+  const openAbout = async () => {
+    try {
+      const r = await fetch("/api/version");
+      if (r.ok) {
+        const d = await r.json();
+        verSpan.textContent = "v" + (d.version || "dev");
+      }
+    } catch { verSpan.textContent = "vdev"; }
+    aboutModal.hidden = false;
+  };
+  const closeAbout = () => { aboutModal.hidden = true; };
+  aboutModal.addEventListener("click", (e) => {
+    if (e.target.dataset.modalClose) closeAbout();
+  });
+
   menuItems.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
@@ -822,6 +936,8 @@
       const p = prompt("Dateiname oder Pfad (leer = Default):", "");
       if (p === null) return;
       exportSession(p.trim() || null);
+    } else if (btn.dataset.action === "about") {
+      openAbout();
     }
   });
 
@@ -938,6 +1054,7 @@
   renderFavs();
   refreshSessionsForFavs();
   setInterval(refreshSessionsForFavs, 15000);
+  restoreLastSession();
 
   // ---------- sidepanel tabs ----------
   const tabsEl = document.getElementById("sidepanelTabs");
@@ -974,11 +1091,31 @@
         body: JSON.stringify({ id: fullId }),
       });
       if (!r.ok) throw new Error(await r.text() || r.status);
-      // Server broadcasts "reset"; the live refreshSessions runs there too.
-      setTimeout(loadSessions, 150); // refresh list to update "current"
+      localStorage.setItem("ccview.lastSession", fullId);
+      setTimeout(loadSessions, 150);
     } catch (err) {
       setStatus("Switch-Fehler: " + err, "err");
     }
+  };
+
+  // Restore last-opened session when the server starts without one.
+  const restoreLastSession = async () => {
+    try {
+      const r = await fetch("/api/sessions");
+      if (!r.ok) return;
+      const list = await r.json();
+      lastSessionsData = list;
+      const cur = list.find(s => s.current);
+      if (cur) {
+        localStorage.setItem("ccview.lastSession", cur.id);
+        return;
+      }
+      const last = localStorage.getItem("ccview.lastSession");
+      if (!last) return;
+      if (list.some(s => s.id === last)) {
+        switchSession(last);
+      }
+    } catch { /* ignore */ }
   };
 
   const loadSessions = async () => {
@@ -1418,17 +1555,38 @@
 
   // ---------- auto-scroll-pause ----------
   const jumpLiveBtn = document.getElementById("jumpLive");
+  const scrollPauseBtn = document.getElementById("scrollPauseBtn");
+  const bottombar = document.getElementById("bottombar");
   let atBottom = true;
+  let scrollPaused = false;
   const BOTTOM_SLOP = 60;
+  const isAtBottom = () => (window.innerHeight + window.scrollY) >= document.body.scrollHeight - BOTTOM_SLOP;
   const checkBottom = () => {
-    atBottom = (window.innerHeight + window.scrollY) >= document.body.scrollHeight - BOTTOM_SLOP;
-    if (atBottom) jumpLiveBtn.classList.remove("visible");
+    atBottom = isAtBottom();
+    if (atBottom && !scrollPaused) jumpLiveBtn.classList.remove("visible");
   };
   window.addEventListener("scroll", checkBottom, { passive: true });
-  jumpLiveBtn.addEventListener("click", () => {
+  const jumpToLive = () => {
     window.scrollTo(0, document.body.scrollHeight);
     atBottom = true;
     jumpLiveBtn.classList.remove("visible");
+  };
+  jumpLiveBtn.addEventListener("click", jumpToLive);
+
+  const setScrollPaused = (v) => {
+    scrollPaused = v;
+    scrollPauseBtn.classList.toggle("active", scrollPaused);
+    scrollPauseBtn.textContent = scrollPaused ? "▶ Scroll" : "⏸ Scroll";
+    scrollPauseBtn.title = scrollPaused ? "Auto-Scroll wieder aktivieren" : "Auto-Scroll pausieren";
+  };
+  bottombar.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    switch (btn.dataset.action) {
+      case "scroll-pause": setScrollPaused(!scrollPaused); break;
+      case "top":          window.scrollTo({ top: 0, behavior: "smooth" }); break;
+      case "bottom":       jumpToLive(); break;
+    }
   });
 
   // ---------- search ----------
@@ -1502,6 +1660,7 @@
     const t = e.target;
     const typing = t.tagName === "INPUT" || t.tagName === "TEXTAREA";
     if (e.key === "Escape") {
+      if (!aboutModal.hidden) { closeAbout(); return; }
       if (!searchbar.hidden) closeSearch();
       openMenu(false);
       return;
@@ -1556,7 +1715,7 @@
         }
         eventsEl.appendChild(node);
         bumpStats(+1);
-        if (atBottom) {
+        if (atBottom && !scrollPaused) {
           window.scrollTo(0, document.body.scrollHeight);
         } else {
           jumpLiveBtn.classList.add("visible");

@@ -48,3 +48,8 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-018: Default-Pfad `~/Workspace/claude-code/sessions/<proj>_<datum>_<short-id>.md`
 - CCVIEW-019: "kopieren"-Button pro Event-Karte — kopiert Inhalt strukturiert in die Zwischenablage (Text, Tool-Calls als `$ cmd`, Results, Thinking mit Marker)
 - CCVIEW-020: Produktivitäts-Bundle — Auto-Scroll-Pause + "↓ Live"-Pill, Live-Suche (`/`), Event-/Prompt-Zähler in Toolbar, Keyboard-Nav (`j`/`k`/`gg`/`G`/`Esc`/`/`), Filter-Input im Prompts-Tab
+- CCVIEW-021: CLI vereinfacht — `ccview` startet direkt den Viewer, keine Stdout-Liste mehr; `-s` bleibt optional; localStorage merkt die zuletzt geöffnete Session
+- CCVIEW-021: Burger-Menü-Eintrag "Über ccview" mit Info-Modal (Version, uc-it.de, GitHub-Link)
+- CCVIEW-021: `/api/version` Endpoint, Version-Feld in `srv.Config`
+- CCVIEW-022: Bottom-Command-Bar mit Scroll-Pause-Toggle (⏸/▶), Anfang/Ende-Buttons, Keyboard-Hint
+- CCVIEW-023: Interrupt-Prompts (Claude Code `queue-operation enqueue` Events) werden jetzt als User-Prompts gerendert — sie tauchen endlich im Viewer auf
