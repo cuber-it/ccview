@@ -94,7 +94,7 @@
   /* ---------- Base ---------- */
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
-  html { scroll-padding-top: 52px; }
+  html { scroll-padding-top: 92px; }
   body {
     font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     transition: background 0.2s, color 0.2s;
@@ -233,6 +233,89 @@
   }
   body.sp-collapsed .sidepanel-tabs { display: none; }
 
+  /* ---------- Favorites bar ---------- */
+  .favbar {
+    position: fixed;
+    top: 40px;
+    left: 220px;
+    right: 0;
+    height: 36px;
+    display: flex;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    z-index: 50;
+    overflow-x: auto;
+    align-items: center;
+    transition: left 0.15s;
+  }
+  body.sp-collapsed .favbar { left: 28px; }
+  .favbar-empty { color: var(--muted); font-size: 11px; font-style: italic; }
+  .fav-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px 3px 10px;
+    background: var(--tool-bg);
+    border: 1px solid var(--tool-border);
+    border-radius: 999px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 240px;
+    flex: 0 0 auto;
+  }
+  .fav-chip:hover { border-color: var(--fg); }
+  .fav-chip.active { border-color: var(--tool-accent); background: var(--bg); }
+  .fav-chip.updated {
+    background: #c8f0c8;
+    color: #1a1a1a;
+    border-color: #6fb96f;
+  }
+  [data-theme="light"] .fav-chip.updated { background: #d6f5d6; }
+  [data-theme="sepia"] .fav-chip.updated { background: #d0e8a8; color: #3b2e1e; border-color: #7a9a48; }
+  .fav-chip .fav-short {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    color: var(--muted);
+  }
+  .fav-chip.updated .fav-short { color: #2a2a2a; }
+  .fav-chip .fav-body {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
+  .fav-chip .fav-unpin {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    line-height: 1;
+    border-radius: 50%;
+  }
+  .fav-chip .fav-unpin:hover { color: var(--error-fg); background: rgba(0,0,0,0.08); }
+  [data-theme="light"] .fav-chip .fav-unpin:hover { background: rgba(0,0,0,0.06); }
+
+  /* Pin button on session-item */
+  .session-item { position: relative; padding-right: 28px; }
+  .session-item .pin-btn {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+  .session-item .pin-btn:hover { color: var(--tool-accent); }
+  .session-item .pin-btn.pinned { color: var(--tool-accent); }
+
   /* ---------- Hover popup ---------- */
   .popup {
     position: fixed;
@@ -306,7 +389,7 @@
   .container {
     max-width: 860px;
     margin: 0 auto 0 220px;
-    padding: 52px 24px 80px;
+    padding: 92px 24px 80px;
     transition: margin-left 0.15s;
   }
   body.sp-collapsed .container { margin-left: 28px; }
@@ -315,7 +398,7 @@
     padding: 14px 18px;
     border-radius: 10px;
     border: 1px solid var(--border);
-    scroll-margin-top: 52px;
+    scroll-margin-top: 92px;
   }
   .event.user { background: var(--user-bg); border-color: var(--user-border); }
   .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
@@ -495,6 +578,7 @@
     <div class="status" id="status">connecting…</div>
   </div>
 </div>
+<div class="favbar" id="favbar"></div>
 <aside class="sidepanel">
   <button class="sidepanel-toggle" id="panelToggle" title="Panel ein-/ausklappen">«</button>
   <div class="sidepanel-tabs" id="sidepanelTabs">
@@ -540,6 +624,120 @@
   panelToggle.addEventListener("click", () => {
     applyPanel(!document.body.classList.contains("sp-collapsed"));
   });
+
+  // ---------- favorites ----------
+  const favbarEl = document.getElementById("favbar");
+  const MAX_FAVS = 5;
+  let lastSessionsData = [];
+
+  const loadFavs = () => {
+    try { return JSON.parse(localStorage.getItem("ccview.favs") || "[]"); }
+    catch { return []; }
+  };
+  const saveFavs = (favs) => localStorage.setItem("ccview.favs", JSON.stringify(favs));
+
+  const epochOf = (iso) => iso ? new Date(iso).getTime() : 0;
+
+  const renderFavs = () => {
+    const favs = loadFavs();
+    favbarEl.innerHTML = "";
+    if (!favs.length) {
+      const empty = document.createElement("div");
+      empty.className = "favbar-empty";
+      empty.textContent = "Keine Favoriten — im Sessions-Tab pinnen (☆)";
+      favbarEl.appendChild(empty);
+      return;
+    }
+    favs.forEach(fav => {
+      const live = lastSessionsData.find(s => s.id === fav.id);
+      const chip = document.createElement("div");
+      chip.className = "fav-chip";
+      if (live && live.current) chip.classList.add("active");
+      const liveLast = live ? epochOf(live.last_event) : 0;
+      if (liveLast > (fav.lastSeen || 0) && !(live && live.current)) chip.classList.add("updated");
+
+      const shortEl = document.createElement("span");
+      shortEl.className = "fav-short";
+      shortEl.textContent = fav.shortId;
+      chip.appendChild(shortEl);
+
+      const body = document.createElement("span");
+      body.className = "fav-body";
+      body.textContent = fav.label || "";
+      chip.appendChild(body);
+
+      const unpin = document.createElement("button");
+      unpin.className = "fav-unpin";
+      unpin.textContent = "×";
+      unpin.title = "Entfernen";
+      unpin.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveFavs(loadFavs().filter(f => f.id !== fav.id));
+        renderFavs();
+        if (sessionsLoaded) loadSessions();
+      });
+      chip.appendChild(unpin);
+
+      chip.addEventListener("click", () => {
+        switchSession(fav.id);
+        markFavSeen(fav.id, live ? live.last_event : null);
+      });
+      favbarEl.appendChild(chip);
+    });
+  };
+
+  const markFavSeen = (id, iso) => {
+    const favs = loadFavs();
+    const f = favs.find(f => f.id === id);
+    if (!f) return;
+    f.lastSeen = iso ? epochOf(iso) : Date.now();
+    saveFavs(favs);
+    renderFavs();
+  };
+
+  const toggleFav = (session) => {
+    const favs = loadFavs();
+    const existing = favs.findIndex(f => f.id === session.id);
+    if (existing >= 0) {
+      favs.splice(existing, 1);
+      saveFavs(favs);
+    } else {
+      if (favs.length >= MAX_FAVS) {
+        setStatus(`max ${MAX_FAVS} Favoriten`, "err");
+        return;
+      }
+      const norm = (session.first_prompt || "").replace(/\s+/g, " ").trim();
+      favs.push({
+        id: session.id,
+        shortId: session.short_id,
+        projectLabel: session.project_label,
+        label: norm.length > 28 ? norm.slice(0, 28) + "..." : (norm || session.project_label || session.short_id),
+        lastSeen: epochOf(session.last_event) || Date.now(),
+      });
+      saveFavs(favs);
+    }
+    renderFavs();
+    loadSessions();
+  };
+
+  const isFav = (id) => loadFavs().some(f => f.id === id);
+
+  const refreshSessionsForFavs = async () => {
+    if (document.hidden) return;
+    try {
+      const r = await fetch("/api/sessions");
+      if (!r.ok) return;
+      lastSessionsData = await r.json();
+      // auto-update lastSeen for the currently-open favorite
+      const cur = lastSessionsData.find(s => s.current);
+      if (cur && isFav(cur.id)) markFavSeen(cur.id, cur.last_event);
+      else renderFavs();
+    } catch { /* ignore */ }
+  };
+
+  renderFavs();
+  refreshSessionsForFavs();
+  setInterval(refreshSessionsForFavs, 15000);
 
   // ---------- sidepanel tabs ----------
   const tabsEl = document.getElementById("sidepanelTabs");
@@ -588,6 +786,7 @@
       const res = await fetch("/api/sessions");
       if (!res.ok) throw new Error(res.status);
       const list = await res.json();
+      lastSessionsData = list;
       if (!list.length) {
         sessionList.innerHTML = '<div class="sidepanel-empty">keine</div>';
         return;
@@ -627,8 +826,19 @@
         proj.textContent = s.project_label || s.project || "";
         item.appendChild(proj);
 
+        const pin = document.createElement("button");
+        pin.className = "pin-btn" + (isFav(s.id) ? " pinned" : "");
+        pin.textContent = isFav(s.id) ? "★" : "☆";
+        pin.title = isFav(s.id) ? "Favorit entfernen" : "Als Favorit pinnen";
+        pin.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleFav(s);
+        });
+        item.appendChild(pin);
+
         sessionList.appendChild(item);
       });
+      renderFavs();
     } catch (err) {
       sessionList.innerHTML = '<div class="sidepanel-empty">Fehler: ' + err + '</div>';
     }

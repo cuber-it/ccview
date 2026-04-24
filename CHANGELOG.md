@@ -40,3 +40,4 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-014: `POST /api/switch` Endpoint, `Hub.Reset`, Server übernimmt Tailer-Verwaltung vom `main.go`
 - CCVIEW-014: Rahmen für Sessions mit Event am aktuellen Tag (`.today` Klasse)
 - CCVIEW-015: Echte User-Prompts visuell hervorgehoben (lila Left-Border, bold Label), Tool-Result-User als "tool-result" umgelabelt und gedämpft; leere Text-/Thinking-Blöcke gefiltert
+- CCVIEW-016: Favoriten-Leiste oben — bis zu 5 pinnbare Sessions (★ im Sessions-Tab), hellgrüner Hintergrund wenn seit letztem Öffnen neue Events; 15-s-Poll mit Visibility-Check; Klick schaltet + markiert als gesehen
