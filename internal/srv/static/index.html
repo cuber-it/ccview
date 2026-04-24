@@ -157,6 +157,85 @@
   }
   .menu-items button:hover { background: var(--highlight); }
   .menu-items .sep { height: 1px; background: var(--border); margin: 2px 0; }
+
+  .brand-stats { color: var(--muted); font-size: 10px; margin-left: 4px; }
+
+  /* Search bar */
+  .searchbar {
+    position: fixed;
+    top: calc(var(--chrome-h) + 2px);
+    left: 240px;
+    right: 24px;
+    max-width: 620px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--status-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    z-index: 90;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  }
+  .searchbar[hidden] { display: none; }
+  body.sp-collapsed .searchbar { left: 48px; }
+  .searchbar input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+  .searchbar input:focus { border-color: var(--tool-accent); }
+  .searchbar .count { color: var(--muted); font-size: 11px; min-width: 70px; text-align: right; }
+  .searchbar button {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    cursor: pointer; font-size: 14px; padding: 2px 8px; border-radius: 3px;
+    font-family: inherit; line-height: 1;
+  }
+  .searchbar button:hover { color: var(--fg); border-color: var(--fg); }
+
+  /* Jump-to-live pill */
+  .jump-live {
+    position: fixed;
+    bottom: 22px;
+    right: 28px;
+    background: var(--tool-accent);
+    color: #111;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    z-index: 90;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    display: none;
+  }
+  .jump-live.visible { display: block; }
+  [data-theme="light"] .jump-live { color: #fff; }
+  [data-theme="sepia"] .jump-live { color: #fff; }
+
+  /* Prompt filter input */
+  .prompt-filter {
+    display: block;
+    width: calc(100% - 16px);
+    margin: 0 8px 8px 8px;
+    padding: 4px 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 11px;
+    outline: none;
+  }
+  .prompt-filter:focus { border-color: var(--tool-accent); }
   .brand { font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
   .theme-switch { display: inline-flex; gap: 4px; }
   .theme-switch button {
@@ -633,6 +712,7 @@
 <div class="toolbar">
   <div class="toolbar-left">
     <span class="brand">ccview</span>
+    <span class="brand-stats" id="stats"></span>
   </div>
   <div class="toolbar-right">
     <div class="theme-switch" id="themeSwitch">
@@ -649,6 +729,12 @@
   </div>
 </div>
 <div class="favbar" id="favbar"></div>
+<div class="searchbar" id="searchbar" hidden>
+  <input type="text" id="searchInput" placeholder="Suchen… (/ öffnen, Esc schließen)">
+  <span class="count" id="searchCount"></span>
+  <button id="searchClose" title="schließen">×</button>
+</div>
+<button class="jump-live" id="jumpLive" title="Zu Live springen">↓ Live</button>
 <aside class="sidepanel">
   <button class="sidepanel-toggle" id="panelToggle" title="Panel ein-/ausklappen">«</button>
   <div class="sidepanel-tabs" id="sidepanelTabs">
@@ -657,6 +743,7 @@
   </div>
   <div id="tabPrompts">
     <h2>Prompts</h2>
+    <input class="prompt-filter" id="promptFilter" placeholder="filtern…">
     <div id="promptList"><div class="sidepanel-empty">noch keine</div></div>
   </div>
   <div id="tabSessions" style="display:none">
@@ -1320,12 +1407,131 @@
 
   const shouldRender = (ev) => ev.blocks && ev.blocks.some(hasMeaningfulText);
 
+  // ---------- event counter ----------
+  const statsEl = document.getElementById("stats");
+  let eventCount = 0;
+  const bumpStats = (delta) => {
+    if (delta === 0) { eventCount = 0; }
+    else eventCount += delta;
+    statsEl.textContent = `${eventCount} events · ${promptCount} prompts`;
+  };
+
+  // ---------- auto-scroll-pause ----------
+  const jumpLiveBtn = document.getElementById("jumpLive");
+  let atBottom = true;
+  const BOTTOM_SLOP = 60;
+  const checkBottom = () => {
+    atBottom = (window.innerHeight + window.scrollY) >= document.body.scrollHeight - BOTTOM_SLOP;
+    if (atBottom) jumpLiveBtn.classList.remove("visible");
+  };
+  window.addEventListener("scroll", checkBottom, { passive: true });
+  jumpLiveBtn.addEventListener("click", () => {
+    window.scrollTo(0, document.body.scrollHeight);
+    atBottom = true;
+    jumpLiveBtn.classList.remove("visible");
+  });
+
+  // ---------- search ----------
+  const searchbar = document.getElementById("searchbar");
+  const searchInput = document.getElementById("searchInput");
+  const searchCount = document.getElementById("searchCount");
+  const searchClose = document.getElementById("searchClose");
+
+  const applySearch = (q) => {
+    const lo = q.trim().toLowerCase();
+    const events = eventsEl.querySelectorAll(".event");
+    if (!lo) {
+      events.forEach(el => el.hidden = false);
+      searchCount.textContent = "";
+      return;
+    }
+    let n = 0;
+    let firstMatch = null;
+    events.forEach(el => {
+      const txt = el.textContent.toLowerCase();
+      const match = txt.includes(lo);
+      el.hidden = !match;
+      if (match) {
+        n++;
+        if (!firstMatch) firstMatch = el;
+      }
+    });
+    searchCount.textContent = n + " Treffer";
+    if (firstMatch) firstMatch.scrollIntoView({ block: "start" });
+  };
+  searchInput.addEventListener("input", e => applySearch(e.target.value));
+  const openSearch = () => {
+    searchbar.hidden = false;
+    searchInput.focus();
+    searchInput.select();
+  };
+  const closeSearch = () => {
+    searchbar.hidden = true;
+    if (searchInput.value) {
+      searchInput.value = "";
+      applySearch("");
+    }
+  };
+  searchClose.addEventListener("click", closeSearch);
+
+  // ---------- prompt-filter ----------
+  const promptFilter = document.getElementById("promptFilter");
+  promptFilter.addEventListener("input", (e) => {
+    const lo = e.target.value.trim().toLowerCase();
+    promptList.querySelectorAll(".sidepanel-item").forEach(el => {
+      const txt = (el.textContent + " " + (el.dataset.popupBody || "")).toLowerCase();
+      el.hidden = lo && !txt.includes(lo);
+    });
+  });
+
+  // ---------- keyboard nav ----------
+  let lastKey = null;
+  const jumpPrompt = (dir) => {
+    const prompts = [...eventsEl.querySelectorAll(".event.prompt")].filter(el => !el.hidden);
+    if (!prompts.length) return;
+    const chromeH = 84;
+    let idx = -1;
+    for (let i = 0; i < prompts.length; i++) {
+      if (prompts[i].getBoundingClientRect().top - chromeH > 4) break;
+      idx = i;
+    }
+    const target = prompts[Math.max(0, Math.min(prompts.length - 1, idx + dir))];
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  document.addEventListener("keydown", (e) => {
+    const t = e.target;
+    const typing = t.tagName === "INPUT" || t.tagName === "TEXTAREA";
+    if (e.key === "Escape") {
+      if (!searchbar.hidden) closeSearch();
+      openMenu(false);
+      return;
+    }
+    if (typing) return;
+    if (e.key === "/") { e.preventDefault(); openSearch(); return; }
+    if (e.key === "j") { jumpPrompt(+1); return; }
+    if (e.key === "k") { jumpPrompt(-1); return; }
+    if (e.key === "G") { window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); return; }
+    if (e.key === "g") {
+      if (lastKey === "g") { window.scrollTo({ top: 0, behavior: "smooth" }); lastKey = null; }
+      else { lastKey = "g"; setTimeout(() => { lastKey = null; }, 600); }
+      return;
+    }
+    lastKey = null;
+  });
+
   const clearView = () => {
     eventsEl.innerHTML = "";
     resetPromptList();
     emptyEl = null;
     showEmpty();
+    bumpStats(0);
+    atBottom = true;
+    jumpLiveBtn.classList.remove("visible");
+    if (promptFilter.value) promptFilter.value = "";
+    if (searchInput.value) { searchInput.value = ""; searchCount.textContent = ""; }
   };
+
+  bumpStats(0); // show "0 events · 0 prompts" on page load
 
   const connect = () => {
     const es = new EventSource("/stream");
@@ -1342,8 +1548,19 @@
       try {
         const ev = JSON.parse(e.data);
         if (!shouldRender(ev)) return;
-        eventsEl.appendChild(eventEl(ev));
-        window.scrollTo(0, document.body.scrollHeight);
+        const node = eventEl(ev);
+        // apply current search filter to new node
+        if (searchInput.value) {
+          const lo = searchInput.value.toLowerCase();
+          node.hidden = !node.textContent.toLowerCase().includes(lo);
+        }
+        eventsEl.appendChild(node);
+        bumpStats(+1);
+        if (atBottom) {
+          window.scrollTo(0, document.body.scrollHeight);
+        } else {
+          jumpLiveBtn.classList.add("visible");
+        }
       } catch (err) {
         console.error("parse error", err);
       }

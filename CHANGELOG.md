@@ -47,3 +47,4 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-018: `POST /api/export` Endpoint, Filesystem-Probe für saubere Projekt-Kurznamen (`sps-sim-go` statt `home_ucuber_…`)
 - CCVIEW-018: Default-Pfad `~/Workspace/claude-code/sessions/<proj>_<datum>_<short-id>.md`
 - CCVIEW-019: "kopieren"-Button pro Event-Karte — kopiert Inhalt strukturiert in die Zwischenablage (Text, Tool-Calls als `$ cmd`, Results, Thinking mit Marker)
+- CCVIEW-020: Produktivitäts-Bundle — Auto-Scroll-Pause + "↓ Live"-Pill, Live-Suche (`/`), Event-/Prompt-Zähler in Toolbar, Keyboard-Nav (`j`/`k`/`gg`/`G`/`Esc`/`/`), Filter-Input im Prompts-Tab
