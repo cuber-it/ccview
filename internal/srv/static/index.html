@@ -6,33 +6,32 @@
 <title>ccview</title>
 <style>
   :root {
-    --bg: #1a1a1a;
-    --fg: #e8e8e8;
-    --muted: #8a8a8a;
-    --border: #2e2e2e;
-    --user-bg: #20222b;
+    --bg: #181818;
+    --fg: #e4e4e4;
+    --muted: #888;
+    --border: #2a2a2a;
+    --user-bg: #1e212a;
     --user-border: #3a4458;
-    --assistant-bg: #1d2422;
+    --assistant-bg: #1c2421;
     --assistant-border: #2e4a3a;
-    --tool-bg: #22232a;
+    --tool-bg: #21222a;
     --tool-border: #3a3d4a;
-    --tool-name: #bda8f3;
-    --result-bg: #15171b;
-    --result-border: #2a2e38;
+    --tool-accent: #bda8f3;
+    --result-bg: #14161b;
+    --result-border: #282c36;
     --error-border: #7a3030;
-    --status-bg: #2a2a2a;
+    --code-bg: #0f1116;
+    --code-fg: #d6dae3;
+    --status-bg: #252525;
   }
   * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
   body {
-    margin: 0;
-    padding: 0;
-    background: var(--bg);
-    color: var(--fg);
     font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   .status {
     position: fixed; top: 0; right: 0;
-    padding: 6px 14px;
+    padding: 5px 14px;
     background: var(--status-bg);
     color: var(--muted);
     font-size: 11px;
@@ -45,14 +44,13 @@
   .container {
     max-width: 860px;
     margin: 0 auto;
-    padding: 40px 24px 80px;
+    padding: 44px 24px 80px;
   }
   .event {
     margin-bottom: 22px;
     padding: 14px 18px;
     border-radius: 10px;
     border: 1px solid var(--border);
-    background: var(--bg);
   }
   .event.user { background: var(--user-bg); border-color: var(--user-border); }
   .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
@@ -62,67 +60,113 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
   }
   .block { margin: 10px 0; }
   .block:first-child { margin-top: 0; }
   .block:last-child { margin-bottom: 0; }
-  .block pre, .block p {
-    margin: 0;
+  .block.text, .block.user_prompt {
     white-space: pre-wrap;
     word-break: break-word;
-    font-family: inherit;
+  }
+  .block.text p, .block.user_prompt p { margin: 0.5em 0; }
+  .block.text p:first-child, .block.user_prompt p:first-child { margin-top: 0; }
+  .block.text p:last-child, .block.user_prompt p:last-child { margin-bottom: 0; }
+  .block.text code, .block.user_prompt code,
+  .block.thinking code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 12.5px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .block.text pre, .block.user_prompt pre, .block.thinking pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    margin: 10px 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 12.5px;
+    color: var(--code-fg);
+  }
+  .block.text pre code, .block.user_prompt pre code, .block.thinking pre code {
+    background: none; border: none; padding: 0; font-size: inherit;
   }
   .block.thinking {
-    opacity: 0.55;
+    opacity: 0.62;
     font-style: italic;
     border-left: 2px solid var(--muted);
     padding-left: 12px;
     font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   .block.tool_use {
     background: var(--tool-bg);
     border: 1px solid var(--tool-border);
     border-radius: 8px;
     padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 12.5px;
   }
   .block.tool_use .tool-name {
-    color: var(--tool-name);
+    color: var(--tool-accent);
     font-weight: 600;
     margin-bottom: 6px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
     font-size: 12px;
+    letter-spacing: 0.02em;
   }
-  .block.tool_use pre {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
-    font-size: 12px;
-    color: #cfd3dc;
-  }
+  .block.tool_use pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--code-fg); }
+  .block.tool_use .kv { color: var(--muted); }
   .block.tool_result {
     background: var(--result-bg);
     border: 1px solid var(--result-border);
     border-radius: 8px;
     padding: 10px 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
-    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 12.5px;
     max-height: 320px;
     overflow: auto;
+    position: relative;
   }
+  .block.tool_result pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--code-fg); }
   .block.tool_result.is-error { border-color: var(--error-border); }
-  .block.tool_result.collapsed { max-height: 90px; position: relative; }
+  .block.tool_result.is-error::before {
+    content: "Fehler";
+    display: inline-block;
+    margin-bottom: 4px;
+    padding: 1px 6px;
+    background: #3a1818;
+    color: #e37070;
+    border-radius: 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .block.tool_result.collapsed { max-height: 100px; overflow: hidden; }
   .block.tool_result.collapsed::after {
     content: "";
-    position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
+    position: absolute; left: 0; right: 0; bottom: 0; height: 48px;
     background: linear-gradient(to bottom, transparent, var(--result-bg));
     pointer-events: none;
   }
   .block.tool_result .expand {
-    display: block; margin-top: 6px;
-    background: none; border: none; color: var(--tool-name);
+    display: inline-block;
+    margin-top: 8px;
+    background: none; border: none; color: var(--tool-accent);
     font-size: 11px; cursor: pointer; padding: 0;
+    font-family: inherit;
   }
+  .block.tool_result .expand:hover { text-decoration: underline; }
   .empty {
     color: var(--muted); text-align: center; margin-top: 60px;
+    font-style: italic;
   }
+  strong { color: #f0ead6; }
 </style>
 </head>
 <body>
@@ -133,6 +177,11 @@
   const eventsEl = document.getElementById("events");
   const statusEl = document.getElementById("status");
   let emptyEl = null;
+
+  const setStatus = (text, cls) => {
+    statusEl.textContent = text;
+    statusEl.className = "status" + (cls ? " " + cls : "");
+  };
   const showEmpty = () => {
     if (emptyEl) return;
     emptyEl = document.createElement("div");
@@ -140,40 +189,105 @@
     emptyEl.textContent = "Session ist leer. Warte auf Events…";
     eventsEl.appendChild(emptyEl);
   };
-  const clearEmpty = () => {
-    if (emptyEl) { emptyEl.remove(); emptyEl = null; }
+  const clearEmpty = () => { if (emptyEl) { emptyEl.remove(); emptyEl = null; } };
+
+  // ---------- minimal markdown ----------
+  // Covers: ```fenced code```, `inline code`, **bold**, *italic*, paragraphs.
+  // No headings, lists, links, tables — enough for chat rendering, safe HTML.
+  const escapeHtml = (s) => s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const renderInline = (text) => {
+    let s = escapeHtml(text);
+    // inline code first (so `**` inside code is literal)
+    s = s.replace(/`([^`\n]+)`/g, (_, c) => `<code>${c}</code>`);
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, (_, c) => `<strong>${c}</strong>`);
+    s = s.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,;:)!?]|$)/g, (_, pre, c) => `${pre}<em>${c}</em>`);
+    return s;
   };
 
-  const setStatus = (text, cls) => {
-    statusEl.textContent = text;
-    statusEl.className = "status" + (cls ? " " + cls : "");
+  const renderMarkdown = (text) => {
+    if (!text) return "";
+    const parts = text.split(/(```[a-zA-Z0-9_-]*\n[\s\S]*?```)/g);
+    return parts.map(part => {
+      const m = part.match(/^```([a-zA-Z0-9_-]*)\n([\s\S]*?)```$/);
+      if (m) {
+        const lang = m[1] ? ` data-lang="${escapeHtml(m[1])}"` : "";
+        return `<pre${lang}><code>${escapeHtml(m[2].replace(/\n$/, ""))}</code></pre>`;
+      }
+      // wrap each blank-line-separated paragraph
+      return part.split(/\n\n+/).filter(p => p).map(p => `<p>${renderInline(p)}</p>`).join("");
+    }).join("");
   };
 
-  const text = (s) => {
-    const p = document.createElement("pre");
-    p.textContent = s || "";
-    return p;
+  // ---------- tool-input prettifier ----------
+  const prettyToolInput = (name, input) => {
+    if (!input || typeof input !== "object") return JSON.stringify(input, null, 2);
+    const lines = [];
+    const push = (label, value, mono = false) => {
+      if (value === undefined || value === null || value === "") return;
+      lines.push(`<span class="kv">${escapeHtml(label)}:</span> ${mono ? `<code>${escapeHtml(String(value))}</code>` : escapeHtml(String(value))}`);
+    };
+    switch (name) {
+      case "Bash":
+        return `<pre>$ ${escapeHtml(input.command || "")}</pre>`;
+      case "Read":
+        return `<pre>${escapeHtml(input.file_path || "")}${input.offset ? ` @${input.offset}` : ""}${input.limit ? ` limit=${input.limit}` : ""}</pre>`;
+      case "Edit":
+        push("file", input.file_path);
+        if (input.replace_all) push("replace_all", true);
+        if (input.old_string !== undefined) {
+          lines.push(`<pre><span style="color:#d37070">- ${escapeHtml(truncate(input.old_string, 200))}</span></pre>`);
+        }
+        if (input.new_string !== undefined) {
+          lines.push(`<pre><span style="color:#7acb7a">+ ${escapeHtml(truncate(input.new_string, 200))}</span></pre>`);
+        }
+        return lines.join("<br>");
+      case "Write":
+        push("file", input.file_path);
+        if (input.content) {
+          lines.push(`<pre>${escapeHtml(truncate(input.content, 400))}</pre>`);
+        }
+        return lines.join("<br>");
+      case "Grep":
+        push("pattern", input.pattern, true);
+        push("path", input.path);
+        push("type", input.type);
+        push("glob", input.glob);
+        return lines.join("<br>");
+      case "Glob":
+        push("pattern", input.pattern, true);
+        push("path", input.path);
+        return lines.join("<br>");
+      default:
+        return `<pre>${escapeHtml(JSON.stringify(input, null, 2))}</pre>`;
+    }
   };
 
+  const truncate = (s, n) => s.length > n ? s.slice(0, n) + "…" : s;
+
+  // ---------- element builders ----------
   const blockEl = (b) => {
     const el = document.createElement("div");
     el.className = "block " + (b.kind || "unknown");
     switch (b.kind) {
-      case "user_prompt":
       case "text":
-        el.appendChild(text(b.text));
+      case "user_prompt":
+        el.innerHTML = renderMarkdown(b.text || "");
         break;
       case "thinking":
-        el.appendChild(text(b.text));
+        el.textContent = b.text || "";
         break;
       case "tool_use": {
         const name = document.createElement("div");
         name.className = "tool-name";
         name.textContent = b.tool_name || "tool";
         el.appendChild(name);
-        if (b.tool_input !== undefined) {
-          el.appendChild(text(JSON.stringify(b.tool_input, null, 2)));
-        }
+        const body = document.createElement("div");
+        body.innerHTML = prettyToolInput(b.tool_name, b.tool_input);
+        el.appendChild(body);
         break;
       }
       case "tool_result": {
@@ -181,23 +295,33 @@
         const body = (b.text || "").replace(/\s+$/, "");
         const long = body.split("\n").length > 10 || body.length > 500;
         if (long) el.classList.add("collapsed");
-        el.appendChild(text(body));
+        const pre = document.createElement("pre");
+        pre.textContent = body;
+        el.appendChild(pre);
         if (long) {
           const btn = document.createElement("button");
           btn.className = "expand";
           btn.textContent = "ausklappen";
           btn.onclick = () => {
-            el.classList.toggle("collapsed");
-            btn.textContent = el.classList.contains("collapsed") ? "ausklappen" : "einklappen";
+            const collapsed = el.classList.toggle("collapsed");
+            btn.textContent = collapsed ? "ausklappen" : "einklappen";
           };
           el.appendChild(btn);
         }
         break;
       }
       default:
-        el.appendChild(text(JSON.stringify(b)));
+        el.textContent = JSON.stringify(b);
     }
     return el;
+  };
+
+  const formatTs = (iso) => {
+    if (!iso || iso.startsWith("0001-01-01")) return "";
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch { return ""; }
   };
 
   const eventEl = (ev) => {
@@ -205,13 +329,17 @@
     el.className = "event " + (ev.kind || "unknown");
     const head = document.createElement("div");
     head.className = "event-header";
-    head.textContent = (ev.kind || "?") + (ev.timestamp ? " · " + ev.timestamp : "");
+    const left = document.createElement("span");
+    left.textContent = ev.kind || "?";
+    const right = document.createElement("span");
+    right.textContent = formatTs(ev.timestamp);
+    head.appendChild(left); head.appendChild(right);
     el.appendChild(head);
     (ev.blocks || []).forEach((b) => el.appendChild(blockEl(b)));
     return el;
   };
 
-  const shouldRender = (ev) => (ev.blocks && ev.blocks.length > 0);
+  const shouldRender = (ev) => ev.blocks && ev.blocks.length > 0;
 
   const connect = () => {
     const es = new EventSource("/stream");

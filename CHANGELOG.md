@@ -18,3 +18,6 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-003: `internal/srv/static/index.html` — Vanilla-JS-Viewer mit Dark-Theme
 - CCVIEW-004: `cmd/ccview` — CLI mit `-s/--session`, `--port`, `--bind`, `--no-browser`
 - CCVIEW-004: Port-Fallback 12100..12199, Cross-Platform Browser-Open
+- CCVIEW-005: Frontend-Polish — Minimal-Markdown (Code-Fences/Bold/Italic/Inline-Code)
+- CCVIEW-005: Tool-Input-Prettifier für Bash/Read/Edit/Write/Grep/Glob
+- CCVIEW-005: Timestamp-Formatierung, Empty-State, Fehler-Badge auf Tool-Results
