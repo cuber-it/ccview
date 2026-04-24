@@ -168,6 +168,13 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	hist, ch, unsubscribe := s.hub.Subscribe()
 	defer unsubscribe()
 
+	// Send an initial comment so the browser's EventSource fires 'open'
+	// even when there is no history yet (fresh server without active session).
+	if _, err := fmt.Fprint(w, ": ok\n\n"); err != nil {
+		return
+	}
+	flusher.Flush()
+
 	write := func(ev parse.Event) bool {
 		if ev.Kind == kindReset {
 			if _, err := fmt.Fprintf(w, "event: reset\ndata: {}\n\n"); err != nil {
