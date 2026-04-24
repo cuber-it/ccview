@@ -10,29 +10,40 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/cuber-it/ccview/internal/parse"
 	"github.com/cuber-it/ccview/internal/session"
+	"github.com/cuber-it/ccview/internal/tail"
 )
 
 //go:embed static
 var staticFS embed.FS
 
 // Server hosts the embedded frontend and an SSE event stream.
+// It owns the tailer-pump for the currently-viewed session and can swap it
+// at runtime via SetSession.
 type Server struct {
-	mux              *http.ServeMux
-	hub              *Hub
-	projectsRoot     string
-	projectDir       string
+	mux *http.ServeMux
+	hub *Hub
+
+	projectsRoot string
+	projectDir   string
+
+	mu               sync.Mutex
 	currentSessionID string
+	pumpCancel       context.CancelFunc
+	rootCtx          context.Context
 }
 
 // Config holds the project context needed to list sibling sessions.
 type Config struct {
 	ProjectsRoot     string // e.g. ~/.claude/projects
 	ProjectDir       string // e.g. -home-ucuber-Workspace-foo
-	CurrentSessionID string // full UUID of the session being viewed
+	CurrentSessionID string // full UUID of the initially-viewed session
 }
 
 // New constructs a Server with its own Hub. cfg may be zero-valued; in that
@@ -52,7 +63,44 @@ func New(cfg Config) *Server {
 	s.mux.Handle("/", http.FileServer(http.FS(sub)))
 	s.mux.HandleFunc("/stream", s.handleStream)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
+	s.mux.HandleFunc("/api/switch", s.handleSwitch)
 	return s
+}
+
+// SetSession stops the current tailer (if any) and starts a new one on path.
+// Connected clients receive a reset signal and the new session's events.
+// Must be called after Serve so the server has a lifetime context.
+func (s *Server) SetSession(info session.Info) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.rootCtx == nil {
+		return fmt.Errorf("Server not yet serving (call Serve before SetSession)")
+	}
+	if s.pumpCancel != nil {
+		s.pumpCancel()
+	}
+	s.hub.Reset()
+	s.currentSessionID = info.ID
+
+	pumpCtx, cancel := context.WithCancel(s.rootCtx)
+	s.pumpCancel = cancel
+	go s.pump(pumpCtx, info.Path)
+	return nil
+}
+
+func (s *Server) pump(ctx context.Context, path string) {
+	ch := tail.New(path).Stream(ctx)
+	for l := range ch {
+		if l.Err != nil {
+			fmt.Fprintln(os.Stderr, "ccview: tail:", l.Err)
+			return
+		}
+		ev, err := parse.Parse(l.Data)
+		if err != nil {
+			continue
+		}
+		s.hub.Publish(ev)
+	}
 }
 
 // Hub returns the Server's event hub. Publish events here.
@@ -64,7 +112,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Serve runs the HTTP server on ln until ctx is canceled.
+// The context becomes the lifetime for any tailer-pumps started via SetSession.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
+	s.mu.Lock()
+	s.rootCtx = ctx
+	s.mu.Unlock()
+
 	srv := &http.Server{
 		Handler:      s.mux,
 		ReadTimeout:  10 * time.Second,
@@ -99,6 +152,13 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	defer unsubscribe()
 
 	write := func(ev parse.Event) bool {
+		if ev.Kind == kindReset {
+			if _, err := fmt.Fprintf(w, "event: reset\ndata: {}\n\n"); err != nil {
+				return false
+			}
+			flusher.Flush()
+			return true
+		}
 		data, err := json.Marshal(ev)
 		if err != nil {
 			return true // skip bad event, don't tear down
@@ -142,21 +202,72 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 
 // sessionDTO is the JSON shape returned by /api/sessions.
 type sessionDTO struct {
-	ID          string    `json:"id"`
-	ShortID     string    `json:"short_id"`
-	LastEvent   time.Time `json:"last_event,omitempty"`
-	Size        int64     `json:"size"`
-	FirstPrompt string    `json:"first_prompt,omitempty"`
-	Current     bool      `json:"current"`
+	ID           string    `json:"id"`
+	ShortID      string    `json:"short_id"`
+	Project      string    `json:"project"`
+	ProjectLabel string    `json:"project_label"`
+	FirstEvent   time.Time `json:"first_event,omitempty"`
+	LastEvent    time.Time `json:"last_event,omitempty"`
+	Size         int64     `json:"size"`
+	FirstPrompt  string    `json:"first_prompt,omitempty"`
+	Current      bool      `json:"current"`
+	SameProject  bool      `json:"same_project"`
+}
+
+// projectLabel turns "-home-ucuber-Workspace-cuber-it-sps-sim-go"
+// into ".../cuber-it/sps-sim/go" for readable display.
+func projectLabel(raw string) string {
+	// Reverse the Claude Code encoding: "-" → "/".
+	path := strings.ReplaceAll(raw, "-", "/")
+	// Trim the last 3 path components for a compact label.
+	parts := strings.Split(path, "/")
+	if len(parts) <= 3 {
+		return path
+	}
+	return ".../" + strings.Join(parts[len(parts)-3:], "/")
+}
+
+func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if s.projectsRoot == "" {
+		http.Error(w, "no projects configured", http.StatusBadRequest)
+		return
+	}
+	sessions, err := session.ListAll(s.projectsRoot)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	info, err := session.Resolve(sessions, body.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err := s.SetSession(info); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": info.ID, "project": info.Project})
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	if s.projectsRoot == "" || s.projectDir == "" {
+	if s.projectsRoot == "" {
 		_ = json.NewEncoder(w).Encode([]sessionDTO{})
 		return
 	}
-	sessions, err := session.List(s.projectsRoot, s.projectDir)
+	sessions, err := session.ListAll(s.projectsRoot)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -168,13 +279,20 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		if len(short) > 8 {
 			short = short[:8]
 		}
+		s.mu.Lock()
+		curID := s.currentSessionID
+		s.mu.Unlock()
 		out = append(out, sessionDTO{
-			ID:          si.ID,
-			ShortID:     short,
-			LastEvent:   si.LastEventTime,
-			Size:        si.Size,
-			FirstPrompt: first,
-			Current:     si.ID == s.currentSessionID,
+			ID:           si.ID,
+			ShortID:      short,
+			Project:      si.Project,
+			ProjectLabel: projectLabel(si.Project),
+			FirstEvent:   si.FirstEventTime,
+			LastEvent:    si.LastEventTime,
+			Size:         si.Size,
+			FirstPrompt:  first,
+			Current:      si.ID == curID,
+			SameProject:  si.Project == s.projectDir,
 		})
 	}
 	_ = json.NewEncoder(w).Encode(out)

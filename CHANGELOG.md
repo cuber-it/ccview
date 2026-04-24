@@ -32,3 +32,10 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-011: `GET /api/sessions` Endpoint — liefert pro Session `short_id`, `last_event`, `size`, `first_prompt`, `current`
 - CCVIEW-011: `session.ReadFirstUserPrompt` — liest ersten User-Prompt aus den ersten 64 KB einer JSONL
 - CCVIEW-012: Image-Block-Support im Parser (`base64` + `url`), `<img>` im Frontend
+- CCVIEW-013: `session.ListAll` — scannt alle Projekte unter `~/.claude/projects/*`
+- CCVIEW-013: Sort nach `FirstEventTime` (Session-Start aus JSONL) — stabil gegen Cross-Writes
+- CCVIEW-013: Badge "aktuell" → "offen"; Sessions-Tab zeigt Projekt-Label pro Eintrag
+- CCVIEW-013: Custom Hover-Popup für Sidepanel-Items mit vollem Prompt-Text (bis 600 Zeichen) und Kopier-Command
+- CCVIEW-014: Session-Switch zur Laufzeit — Klick auf Session im Sidepanel lädt diese in Live-Tail
+- CCVIEW-014: `POST /api/switch` Endpoint, `Hub.Reset`, Server übernimmt Tailer-Verwaltung vom `main.go`
+- CCVIEW-014: Rahmen für Sessions mit Event am aktuellen Tag (`.today` Klasse)

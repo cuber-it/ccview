@@ -22,10 +22,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cuber-it/ccview/internal/parse"
 	"github.com/cuber-it/ccview/internal/session"
 	"github.com/cuber-it/ccview/internal/srv"
-	"github.com/cuber-it/ccview/internal/tail"
 )
 
 // version is set via -ldflags -X at build time.
@@ -108,30 +106,23 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 		CurrentSessionID: info.ID,
 	})
 
-	// tail → parse → publish
-	go pump(ctx, info.Path, s.Hub(), cancel)
-
 	if !noBrowser {
 		go openBrowser(url)
 	}
 
-	return s.Serve(ctx, ln)
-}
+	// Kick off the initial tailer once Serve has stored the lifetime context.
+	go func() {
+		for i := 0; i < 100; i++ {
+			if err := s.SetSession(info); err == nil {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		fmt.Fprintln(os.Stderr, "ccview: failed to start initial tailer")
+		cancel()
+	}()
 
-func pump(ctx context.Context, path string, hub *srv.Hub, cancel context.CancelFunc) {
-	ch := tail.New(path).Stream(ctx)
-	for l := range ch {
-		if l.Err != nil {
-			fmt.Fprintln(os.Stderr, "ccview: tail:", l.Err)
-			cancel()
-			return
-		}
-		ev, err := parse.Parse(l.Data)
-		if err != nil {
-			continue
-		}
-		hub.Publish(ev)
-	}
+	return s.Serve(ctx, ln)
 }
 
 // listenWithFallback binds bind:port. port==0 → try 12100..12199 in order.

@@ -17,12 +17,56 @@ import (
 
 // Info is metadata about a single session JSONL file.
 type Info struct {
-	ID            string    // full session UUID (filename without .jsonl)
-	Path          string    // absolute path to the .jsonl
-	Project       string    // project dir name (with leading dash)
-	Size          int64
-	ModTime       time.Time // file mtime — unreliable as "last activity" (Claude Code touches files across sessions)
-	LastEventTime time.Time // timestamp of the last event inside the JSONL; zero if none found
+	ID             string    // full session UUID (filename without .jsonl)
+	Path           string    // absolute path to the .jsonl
+	Project        string    // project dir name (with leading dash)
+	Size           int64
+	ModTime        time.Time // file mtime — unreliable as "last activity" (Claude Code touches files across sessions)
+	FirstEventTime time.Time // timestamp of the first event inside the JSONL — session start, stable
+	LastEventTime  time.Time // timestamp of the last event inside the JSONL; zero if none found
+}
+
+// ReadFirstEventTime returns the timestamp of the first event in the JSONL
+// that carries a "timestamp" field. Scans only the first 64 KB.
+// This corresponds to the session start and is stable — unlike mtime
+// or last-event-time, it doesn't drift when Claude Code writes cross-session.
+func ReadFirstEventTime(path string) (time.Time, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 64*1024)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return time.Time{}, err
+	}
+	data := buf[:n]
+
+	for len(data) > 0 {
+		idx := bytes.IndexByte(data, '\n')
+		var line []byte
+		if idx >= 0 {
+			line = data[:idx]
+			data = data[idx+1:]
+		} else {
+			line = data
+			data = nil
+		}
+		if len(line) == 0 {
+			continue
+		}
+		var tmp struct {
+			Timestamp string `json:"timestamp"`
+		}
+		if json.Unmarshal(line, &tmp) == nil && tmp.Timestamp != "" {
+			if t, err := time.Parse(time.RFC3339Nano, tmp.Timestamp); err == nil {
+				return t, nil
+			}
+		}
+	}
+	return time.Time{}, errors.New("no timestamped event in first 64 KB")
 }
 
 // ReadLastEventTime scans the tail of a JSONL file for the most recent
@@ -105,7 +149,7 @@ func ProjectDirFromCwd(cwd string) string {
 }
 
 // List returns all session JSONLs in projectsRoot/projectDir, sorted newest first
-// by LastEventTime (from the JSONL content itself) with ModTime as fallback.
+// by FirstEventTime (session start) with ModTime as fallback.
 func List(projectsRoot, projectDir string) ([]Info, error) {
 	dir := filepath.Join(projectsRoot, projectDir)
 	entries, err := os.ReadDir(dir)
@@ -122,22 +166,54 @@ func List(projectsRoot, projectDir string) ([]Info, error) {
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
-		last, _ := ReadLastEventTime(path) // zero on error — sort falls back to mtime
+		first, _ := ReadFirstEventTime(path)
+		last, _ := ReadLastEventTime(path)
 		out = append(out, Info{
-			ID:            strings.TrimSuffix(e.Name(), ".jsonl"),
-			Path:          path,
-			Project:       projectDir,
-			Size:          fi.Size(),
-			ModTime:       fi.ModTime(),
-			LastEventTime: last,
+			ID:             strings.TrimSuffix(e.Name(), ".jsonl"),
+			Path:           path,
+			Project:        projectDir,
+			Size:           fi.Size(),
+			ModTime:        fi.ModTime(),
+			FirstEventTime: first,
+			LastEventTime:  last,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return sortKey(out[i]).After(sortKey(out[j])) })
+	sortInfos(out)
 	return out, nil
 }
 
-// sortKey picks LastEventTime if known, else ModTime.
+// ListAll returns all session JSONLs across all projects under projectsRoot.
+// Sorted newest-first by FirstEventTime (session start).
+func ListAll(projectsRoot string) ([]Info, error) {
+	projects, err := os.ReadDir(projectsRoot)
+	if err != nil {
+		return nil, err
+	}
+	var out []Info
+	for _, p := range projects {
+		if !p.IsDir() {
+			continue
+		}
+		part, err := List(projectsRoot, p.Name())
+		if err != nil {
+			continue
+		}
+		out = append(out, part...)
+	}
+	sortInfos(out)
+	return out, nil
+}
+
+func sortInfos(s []Info) {
+	sort.Slice(s, func(i, j int) bool { return sortKey(s[i]).After(sortKey(s[j])) })
+}
+
+// sortKey prefers FirstEventTime (stable session start) over anything else.
+// Falls back to LastEventTime, then ModTime.
 func sortKey(i Info) time.Time {
+	if !i.FirstEventTime.IsZero() {
+		return i.FirstEventTime
+	}
 	if !i.LastEventTime.IsZero() {
 		return i.LastEventTime
 	}

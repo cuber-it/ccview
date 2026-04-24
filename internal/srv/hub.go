@@ -6,6 +6,12 @@ import (
 	"github.com/cuber-it/ccview/internal/parse"
 )
 
+// kindReset is an internal control event signalling subscribers that the
+// active session has changed and they should clear their view. Never
+// serialized to clients as a normal "data:" message — translated to an
+// "event: reset" SSE frame by the stream handler.
+const kindReset parse.Kind = "__ccview_reset__"
+
 // Hub holds event history and fans out live events to subscribed clients.
 // Safe for concurrent use.
 type Hub struct {
@@ -48,6 +54,20 @@ func (h *Hub) Subscribe() ([]parse.Event, <-chan parse.Event, func()) {
 		if _, ok := h.clients[ch]; ok {
 			delete(h.clients, ch)
 			close(ch)
+		}
+	}
+}
+
+// Reset clears event history and tells every subscriber to drop its view.
+// Called when the active session changes.
+func (h *Hub) Reset() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.history = nil
+	for c := range h.clients {
+		select {
+		case c <- parse.Event{Kind: kindReset}:
+		default:
 		}
 	}
 }
