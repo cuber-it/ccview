@@ -1,5 +1,5 @@
-// Package session locates Claude Code session JSONL files on disk and
-// resolves user-provided session specs (id, prefix, "latest") into paths.
+// Package session locates Claude Code session JSONL files and resolves
+// user-provided session specs (id, prefix, "latest") into paths.
 package session
 
 import (
@@ -17,120 +17,13 @@ import (
 
 // Info is metadata about a single session JSONL file.
 type Info struct {
-	ID             string    // full session UUID (filename without .jsonl)
-	Path           string    // absolute path to the .jsonl
-	Project        string    // project dir name (with leading dash)
+	ID             string
+	Path           string
+	Project        string
 	Size           int64
-	ModTime        time.Time // file mtime — unreliable as "last activity" (Claude Code touches files across sessions)
-	FirstEventTime time.Time // timestamp of the first event inside the JSONL — session start, stable
-	LastEventTime  time.Time // timestamp of the last event inside the JSONL; zero if none found
-}
-
-// ReadFirstEventTime returns the timestamp of the first event in the JSONL
-// that carries a "timestamp" field. Scans only the first 64 KB.
-// This corresponds to the session start and is stable — unlike mtime
-// or last-event-time, it doesn't drift when Claude Code writes cross-session.
-func ReadFirstEventTime(path string) (time.Time, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return time.Time{}, err
-	}
-	defer f.Close()
-
-	buf := make([]byte, 64*1024)
-	n, err := io.ReadFull(f, buf)
-	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
-		return time.Time{}, err
-	}
-	data := buf[:n]
-
-	for len(data) > 0 {
-		idx := bytes.IndexByte(data, '\n')
-		var line []byte
-		if idx >= 0 {
-			line = data[:idx]
-			data = data[idx+1:]
-		} else {
-			line = data
-			data = nil
-		}
-		if len(line) == 0 {
-			continue
-		}
-		var tmp struct {
-			Timestamp string `json:"timestamp"`
-		}
-		if json.Unmarshal(line, &tmp) == nil && tmp.Timestamp != "" {
-			if t, err := time.Parse(time.RFC3339Nano, tmp.Timestamp); err == nil {
-				return t, nil
-			}
-		}
-	}
-	return time.Time{}, errors.New("no timestamped event in first 64 KB")
-}
-
-// ReadLastEventTime scans the tail of a JSONL file for the most recent
-// event that carries a "timestamp" field and returns it.
-// Cheap: reads only the last 16 KB.
-func ReadLastEventTime(path string) (time.Time, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return time.Time{}, err
-	}
-	defer f.Close()
-
-	size, err := f.Seek(0, io.SeekEnd)
-	if err != nil {
-		return time.Time{}, err
-	}
-	if size == 0 {
-		return time.Time{}, errors.New("empty file")
-	}
-
-	const tailLen = 16 * 1024
-	start := int64(0)
-	if size > tailLen {
-		start = size - tailLen
-	}
-	if _, err := f.Seek(start, io.SeekStart); err != nil {
-		return time.Time{}, err
-	}
-	buf, err := io.ReadAll(f)
-	if err != nil {
-		return time.Time{}, err
-	}
-	buf = bytes.TrimRight(buf, "\n\r")
-
-	// Walk lines from the end; return the first one with a usable timestamp.
-	for {
-		idx := bytes.LastIndexByte(buf, '\n')
-		var line []byte
-		if idx >= 0 {
-			line = buf[idx+1:]
-			buf = buf[:idx]
-		} else {
-			line = buf
-			buf = nil
-		}
-		if len(line) == 0 {
-			if len(buf) == 0 {
-				break
-			}
-			continue
-		}
-		var tmp struct {
-			Timestamp string `json:"timestamp"`
-		}
-		if json.Unmarshal(line, &tmp) == nil && tmp.Timestamp != "" {
-			if t, err := time.Parse(time.RFC3339Nano, tmp.Timestamp); err == nil {
-				return t, nil
-			}
-		}
-		if len(buf) == 0 {
-			break
-		}
-	}
-	return time.Time{}, errors.New("no timestamped event in tail")
+	ModTime        time.Time
+	FirstEventTime time.Time // from the JSONL content — stable across cross-writes
+	LastEventTime  time.Time // zero if no timestamped event found in tail
 }
 
 // ProjectsDir returns the default Claude Code projects directory.
@@ -142,14 +35,14 @@ func ProjectsDir() (string, error) {
 	return filepath.Join(home, ".claude", "projects"), nil
 }
 
-// ProjectDirFromCwd derives the Claude Code project-dir name from a working directory.
-// Example: /home/ucuber/Workspace/x → -home-ucuber-Workspace-x
+// ProjectDirFromCwd derives the Claude Code project-dir name from a cwd.
+// Example: /home/u/Workspace/x → -home-u-Workspace-x.
 func ProjectDirFromCwd(cwd string) string {
 	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
 }
 
-// List returns all session JSONLs in projectsRoot/projectDir, sorted newest first
-// by FirstEventTime (session start) with ModTime as fallback.
+// List returns all session JSONLs in projectsRoot/projectDir, sorted
+// newest-first by FirstEventTime (session start), ModTime as fallback.
 func List(projectsRoot, projectDir string) ([]Info, error) {
 	dir := filepath.Join(projectsRoot, projectDir)
 	entries, err := os.ReadDir(dir)
@@ -182,8 +75,8 @@ func List(projectsRoot, projectDir string) ([]Info, error) {
 	return out, nil
 }
 
-// ListAll returns all session JSONLs across all projects under projectsRoot.
-// Sorted newest-first by FirstEventTime (session start).
+// ListAll scans every project under projectsRoot and returns all sessions,
+// sorted newest-first by FirstEventTime.
 func ListAll(projectsRoot string) ([]Info, error) {
 	projects, err := os.ReadDir(projectsRoot)
 	if err != nil {
@@ -208,81 +101,22 @@ func sortInfos(s []Info) {
 	sort.Slice(s, func(i, j int) bool { return sortKey(s[i]).After(sortKey(s[j])) })
 }
 
-// sortKey prefers FirstEventTime (stable session start) over anything else.
-// Falls back to LastEventTime, then ModTime.
 func sortKey(i Info) time.Time {
-	if !i.FirstEventTime.IsZero() {
+	switch {
+	case !i.FirstEventTime.IsZero():
 		return i.FirstEventTime
-	}
-	if !i.LastEventTime.IsZero() {
+	case !i.LastEventTime.IsZero():
 		return i.LastEventTime
+	default:
+		return i.ModTime
 	}
-	return i.ModTime
 }
 
-// ReadFirstUserPrompt returns the text of the first user event with string
-// content inside path (i.e. a real prompt, not a tool-result). Scans only the
-// first ~64 KB of the file.
-func ReadFirstUserPrompt(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	buf := make([]byte, 64*1024)
-	n, err := io.ReadFull(f, buf)
-	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
-		return "", err
-	}
-	if n == 0 {
-		return "", errors.New("empty file")
-	}
-	data := buf[:n]
-
-	for len(data) > 0 {
-		idx := bytes.IndexByte(data, '\n')
-		var line []byte
-		if idx >= 0 {
-			line = data[:idx]
-			data = data[idx+1:]
-		} else {
-			line = data
-			data = nil
-		}
-		if len(line) == 0 {
-			continue
-		}
-		var tmp struct {
-			Type    string `json:"type"`
-			Message struct {
-				Content json.RawMessage `json:"content"`
-			} `json:"message"`
-		}
-		if json.Unmarshal(line, &tmp) != nil {
-			continue
-		}
-		if tmp.Type != "user" || len(tmp.Message.Content) == 0 {
-			continue
-		}
-		if tmp.Message.Content[0] == '"' {
-			var s string
-			if json.Unmarshal(tmp.Message.Content, &s) == nil && s != "" {
-				return s, nil
-			}
-		}
-	}
-	return "", errors.New("no user prompt found in first 64 KB")
-}
-
-// Resolve turns a user-provided session spec into a single Info.
-// Accepted specs:
+// Resolve turns a session spec into a single Info:
 //
-//	"latest"                 → newest session by mtime
-//	<full-uuid>              → exact match
-//	<prefix> (min 4 chars)   → unique prefix match
-//
-// Returns an error for empty spec, short prefix, no match, or ambiguous prefix.
+//	"latest"               → newest session by FirstEventTime
+//	<full-uuid>            → exact match
+//	<prefix> (≥ 4 chars)   → unique prefix match
 func Resolve(sessions []Info, spec string) (Info, error) {
 	if len(sessions) == 0 {
 		return Info{}, errors.New("no sessions found")
@@ -320,4 +154,162 @@ func Resolve(sessions []Info, spec string) (Info, error) {
 		return Info{}, fmt.Errorf("ambiguous prefix %q matches %d sessions: %s",
 			spec, len(matches), strings.Join(ids, ", "))
 	}
+}
+
+// ReadFirstEventTime returns the timestamp of the first timestamped event.
+// Scans the first 64 KB. Session-start time — stable, doesn't drift.
+func ReadFirstEventTime(path string) (time.Time, error) {
+	var out time.Time
+	err := scanHead(path, 64*1024, func(line []byte) bool {
+		if t, ok := extractTimestamp(line); ok {
+			out = t
+			return true
+		}
+		return false
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if out.IsZero() {
+		return time.Time{}, errors.New("no timestamped event in first 64 KB")
+	}
+	return out, nil
+}
+
+// ReadLastEventTime returns the timestamp of the most recent timestamped event.
+// Scans the last 16 KB.
+func ReadLastEventTime(path string) (time.Time, error) {
+	var out time.Time
+	err := scanTail(path, 16*1024, func(line []byte) bool {
+		if t, ok := extractTimestamp(line); ok {
+			out = t
+			return true
+		}
+		return false
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if out.IsZero() {
+		return time.Time{}, errors.New("no timestamped event in last 16 KB")
+	}
+	return out, nil
+}
+
+// ReadFirstUserPrompt returns the text of the first user-string prompt
+// (i.e. not a tool-result). Scans the first 64 KB.
+func ReadFirstUserPrompt(path string) (string, error) {
+	var out string
+	err := scanHead(path, 64*1024, func(line []byte) bool {
+		var tmp struct {
+			Type    string `json:"type"`
+			Message struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(line, &tmp) != nil {
+			return false
+		}
+		if tmp.Type != "user" || len(tmp.Message.Content) == 0 || tmp.Message.Content[0] != '"' {
+			return false
+		}
+		var s string
+		if json.Unmarshal(tmp.Message.Content, &s) == nil && s != "" {
+			out = s
+			return true
+		}
+		return false
+	})
+	if err != nil {
+		return "", err
+	}
+	if out == "" {
+		return "", errors.New("no user prompt found in first 64 KB")
+	}
+	return out, nil
+}
+
+// scanHead reads up to limit bytes from the start and calls fn per non-empty
+// line, in file order. Stops when fn returns true.
+func scanHead(path string, limit int, fn func(line []byte) bool) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	buf := make([]byte, limit)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return err
+	}
+	data := buf[:n]
+	for len(data) > 0 {
+		idx := bytes.IndexByte(data, '\n')
+		var line []byte
+		if idx >= 0 {
+			line, data = data[:idx], data[idx+1:]
+		} else {
+			line, data = data, nil
+		}
+		if len(line) > 0 && fn(line) {
+			return nil
+		}
+	}
+	return nil
+}
+
+// scanTail reads up to limit bytes from the end and calls fn per non-empty
+// line, in reverse file order. Stops when fn returns true.
+func scanTail(path string, limit int, fn func(line []byte) bool) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	size, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return err
+	}
+	if size == 0 {
+		return nil
+	}
+	start := int64(0)
+	if size > int64(limit) {
+		start = size - int64(limit)
+	}
+	if _, err := f.Seek(start, io.SeekStart); err != nil {
+		return err
+	}
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+	buf = bytes.TrimRight(buf, "\n\r")
+	for len(buf) > 0 {
+		idx := bytes.LastIndexByte(buf, '\n')
+		var line []byte
+		if idx >= 0 {
+			line, buf = buf[idx+1:], buf[:idx]
+		} else {
+			line, buf = buf, nil
+		}
+		if len(line) > 0 && fn(line) {
+			return nil
+		}
+	}
+	return nil
+}
+
+func extractTimestamp(line []byte) (time.Time, bool) {
+	var tmp struct {
+		Timestamp string `json:"timestamp"`
+	}
+	if json.Unmarshal(line, &tmp) != nil || tmp.Timestamp == "" {
+		return time.Time{}, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, tmp.Timestamp)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
 }

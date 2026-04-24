@@ -1,21 +1,20 @@
-// Package srv provides an HTTP server that hosts the ccview frontend
-// and streams session events via SSE to connected browsers.
+// Package srv serves the ccview frontend and streams session events via SSE.
 package srv
 
 import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
-
-	"path/filepath"
 
 	"github.com/cuber-it/ccview/internal/export"
 	"github.com/cuber-it/ccview/internal/parse"
@@ -26,45 +25,38 @@ import (
 //go:embed static
 var staticFS embed.FS
 
-// Server hosts the embedded frontend and an SSE event stream.
-// It owns the tailer-pump for the currently-viewed session and can swap it
-// at runtime via SetSession.
-type Server struct {
-	mux *http.ServeMux
-	hub *Hub
+const defaultExportDir = "Workspace/claude-code/sessions"
 
+type Config struct {
+	ProjectsRoot string
+	ProjectDir   string
+	Version      string
+}
+
+type Server struct {
+	mux          *http.ServeMux
+	hub          *Hub
 	projectsRoot string
 	projectDir   string
+	version      string
 
-	mu               sync.Mutex
-	currentSessionID string
-	pumpCancel       context.CancelFunc
-	rootCtx          context.Context
-	version          string
+	mu         sync.Mutex
+	currentID  string
+	pumpCancel context.CancelFunc
+	rootCtx    context.Context
 }
 
-// Config holds the project context needed to list sibling sessions.
-type Config struct {
-	ProjectsRoot     string // e.g. ~/.claude/projects
-	ProjectDir       string // e.g. -home-ucuber-Workspace-foo
-	CurrentSessionID string // full UUID of the initially-viewed session (may be empty)
-	Version          string // build version for /api/version
-}
-
-// New constructs a Server with its own Hub. cfg may be zero-valued; in that
-// case /api/sessions will return an empty list.
 func New(cfg Config) *Server {
 	s := &Server{
-		mux:              http.NewServeMux(),
-		hub:              newHub(),
-		projectsRoot:     cfg.ProjectsRoot,
-		projectDir:       cfg.ProjectDir,
-		currentSessionID: cfg.CurrentSessionID,
-		version:          cfg.Version,
+		mux:          http.NewServeMux(),
+		hub:          newHub(),
+		projectsRoot: cfg.ProjectsRoot,
+		projectDir:   cfg.ProjectDir,
+		version:      cfg.Version,
 	}
 	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
-		panic(err) // programmer error: embed path wrong
+		panic(err)
 	}
 	s.mux.Handle("/", http.FileServer(http.FS(sub)))
 	s.mux.HandleFunc("/stream", s.handleStream)
@@ -75,30 +67,50 @@ func New(cfg Config) *Server {
 	return s
 }
 
-func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	v := s.version
-	if v == "" {
-		v = "dev"
+func (s *Server) Hub() *Hub { return s.hub }
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
+
+// Serve runs the HTTP server until ctx is canceled. If initial is non-nil,
+// that session is opened before serving begins.
+func (s *Server) Serve(ctx context.Context, ln net.Listener, initial *session.Info) error {
+	s.mu.Lock()
+	s.rootCtx = ctx
+	s.mu.Unlock()
+	if initial != nil {
+		if err := s.SetSession(*initial); err != nil {
+			return err
+		}
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"version": v})
+	srv := &http.Server{
+		Handler:     s.mux,
+		ReadTimeout: 10 * time.Second,
+		IdleTimeout: 120 * time.Second,
+	}
+	go func() {
+		<-ctx.Done()
+		shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutCtx)
+	}()
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
-// SetSession stops the current tailer (if any) and starts a new one on path.
-// Connected clients receive a reset signal and the new session's events.
-// Must be called after Serve so the server has a lifetime context.
+// SetSession replaces the active tailer and resets all subscribed clients.
 func (s *Server) SetSession(info session.Info) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.rootCtx == nil {
-		return fmt.Errorf("Server not yet serving (call Serve before SetSession)")
+		return errors.New("server not serving yet")
 	}
 	if s.pumpCancel != nil {
 		s.pumpCancel()
 	}
 	s.hub.Reset()
-	s.currentSessionID = info.ID
-
+	s.currentID = info.ID
 	pumpCtx, cancel := context.WithCancel(s.rootCtx)
 	s.pumpCancel = cancel
 	go s.pump(pumpCtx, info.Path)
@@ -106,13 +118,12 @@ func (s *Server) SetSession(info session.Info) error {
 }
 
 func (s *Server) pump(ctx context.Context, path string) {
-	ch := tail.New(path).Stream(ctx)
-	for l := range ch {
-		if l.Err != nil {
-			fmt.Fprintln(os.Stderr, "ccview: tail:", l.Err)
+	for line := range tail.New(path).Stream(ctx) {
+		if line.Err != nil {
+			fmt.Fprintln(os.Stderr, "ccview: tail:", line.Err)
 			return
 		}
-		ev, err := parse.Parse(l.Data)
+		ev, err := parse.Parse(line.Data)
 		if err != nil {
 			continue
 		}
@@ -120,37 +131,14 @@ func (s *Server) pump(ctx context.Context, path string) {
 	}
 }
 
-// Hub returns the Server's event hub. Publish events here.
-func (s *Server) Hub() *Hub { return s.hub }
+// ---- handlers ----
 
-// ServeHTTP implements http.Handler.
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
-}
-
-// Serve runs the HTTP server on ln until ctx is canceled.
-// The context becomes the lifetime for any tailer-pumps started via SetSession.
-func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
-	s.mu.Lock()
-	s.rootCtx = ctx
-	s.mu.Unlock()
-
-	srv := &http.Server{
-		Handler:      s.mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 0, // SSE needs long-lived writes
-		IdleTimeout:  120 * time.Second,
+func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
+	v := s.version
+	if v == "" {
+		v = "dev"
 	}
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	}()
-	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-		return err
-	}
-	return nil
+	writeJSON(w, map[string]string{"version": v})
 }
 
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
@@ -165,11 +153,10 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
 
-	hist, ch, unsubscribe := s.hub.Subscribe()
-	defer unsubscribe()
+	hist, ch, unsub := s.hub.Subscribe()
+	defer unsub()
 
-	// Send an initial comment so the browser's EventSource fires 'open'
-	// even when there is no history yet (fresh server without active session).
+	// Initial comment opens the stream for the browser even with empty history.
 	if _, err := fmt.Fprint(w, ": ok\n\n"); err != nil {
 		return
 	}
@@ -177,7 +164,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 
 	write := func(ev parse.Event) bool {
 		if ev.Kind == kindReset {
-			if _, err := fmt.Fprintf(w, "event: reset\ndata: {}\n\n"); err != nil {
+			if _, err := fmt.Fprint(w, "event: reset\ndata: {}\n\n"); err != nil {
 				return false
 			}
 			flusher.Flush()
@@ -185,7 +172,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		}
 		data, err := json.Marshal(ev)
 		if err != nil {
-			return true // skip bad event, don't tear down
+			return true
 		}
 		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
 			return false
@@ -199,7 +186,6 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	flusher.Flush()
 
 	ctx := r.Context()
 	keepalive := time.NewTicker(20 * time.Second)
@@ -209,14 +195,11 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case ev, ok := <-ch:
-			if !ok {
-				return
-			}
-			if !write(ev) {
+			if !ok || !write(ev) {
 				return
 			}
 		case <-keepalive.C:
-			if _, err := fmt.Fprintf(w, ": keepalive\n\n"); err != nil {
+			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
 				return
 			}
 			flusher.Flush()
@@ -224,7 +207,6 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// sessionDTO is the JSON shape returned by /api/sessions.
 type sessionDTO struct {
 	ID           string    `json:"id"`
 	ShortID      string    `json:"short_id"`
@@ -238,202 +220,41 @@ type sessionDTO struct {
 	SameProject  bool      `json:"same_project"`
 }
 
-// projectLabel turns "-home-ucuber-Workspace-cuber-it-sps-sim-go"
-// into ".../cuber-it/sps-sim/go" for readable display.
-func projectLabel(raw string) string {
-	// Reverse the Claude Code encoding: "-" → "/".
-	path := strings.ReplaceAll(raw, "-", "/")
-	// Trim the last 3 path components for a compact label.
-	parts := strings.Split(path, "/")
-	if len(parts) <= 3 {
-		return path
-	}
-	return ".../" + strings.Join(parts[len(parts)-3:], "/")
-}
-
-// defaultExportDir is where "Save" (no explicit path) writes to.
-const defaultExportDir = "Workspace/claude-code/sessions"
-
-// defaultExportPath returns ~/Workspace/claude-code/sessions/<proj>_<date>_<shortid>.md
-// based on the currently-viewed session and its header info.
-func defaultExportPath(sessionID, projectDir string, started time.Time) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	base := filepath.Join(home, defaultExportDir)
-	short := sessionID
-	if len(short) > 8 {
-		short = short[:8]
-	}
-	proj := projectShortName(projectDir)
-	if proj == "" {
-		proj = "project"
-	}
-	date := time.Now()
-	if !started.IsZero() {
-		date = started
-	}
-	name := fmt.Sprintf("%s_%s_%s.md", proj, date.Local().Format("2006-01-02"), short)
-	return filepath.Join(base, name), nil
-}
-
-// projectShortName reverses Claude Code's lossy `/`→`-` encoding by probing the
-// filesystem greedily for existing directories, then returns the last 2 real
-// path segments joined by "-". Falls back to the last hyphen-segment if no
-// directory lookup succeeds.
-func projectShortName(encoded string) string {
-	encoded = strings.TrimLeft(encoded, "-")
-	if encoded == "" {
-		return ""
-	}
-	parts := strings.Split(encoded, "-")
-	prefix := string(filepath.Separator)
-	real := []string{}
-	i := 0
-	for i < len(parts) {
-		matched := false
-		for j := len(parts); j > i; j-- {
-			candidate := strings.Join(parts[i:j], "-")
-			if candidate == "" {
-				continue
-			}
-			test := filepath.Join(prefix, candidate)
-			if stat, err := os.Stat(test); err == nil && stat.IsDir() {
-				real = append(real, candidate)
-				prefix = test
-				i = j
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			i++ // skip this part; shouldn't happen for real sessions
-		}
-	}
-	switch len(real) {
-	case 0:
-		return parts[len(parts)-1]
-	case 1:
-		return real[0]
-	default:
-		return real[len(real)-2] + "-" + real[len(real)-1]
-	}
-}
-
-func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
+	if s.projectsRoot == "" {
+		writeJSON(w, []sessionDTO{})
 		return
 	}
-	var body struct {
-		Path string `json:"path"`
+	sessions, err := session.ListAll(s.projectsRoot)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
-
 	s.mu.Lock()
-	curID := s.currentSessionID
-	curProject := s.projectDir
+	curID := s.currentID
 	s.mu.Unlock()
 
-	// Try to enrich meta by looking up the session in the project list.
-	var started time.Time
-	var projectPath string
-	if s.projectsRoot != "" && curProject != "" {
-		if list, err := session.List(s.projectsRoot, curProject); err == nil {
-			for _, si := range list {
-				if si.ID == curID {
-					started = si.FirstEventTime
-					break
-				}
-			}
+	out := make([]sessionDTO, 0, len(sessions))
+	for _, si := range sessions {
+		first, _ := session.ReadFirstUserPrompt(si.Path)
+		short := si.ID
+		if len(short) > 8 {
+			short = short[:8]
 		}
+		out = append(out, sessionDTO{
+			ID:           si.ID,
+			ShortID:      short,
+			Project:      si.Project,
+			ProjectLabel: projectLabel(si.Project),
+			FirstEvent:   si.FirstEventTime,
+			LastEvent:    si.LastEventTime,
+			Size:         si.Size,
+			FirstPrompt:  first,
+			Current:      si.ID == curID,
+			SameProject:  si.Project == s.projectDir,
+		})
 	}
-	projectPath = decodeProjectDir(curProject)
-
-	target := body.Path
-	if target == "" {
-		p, err := defaultExportPath(curID, curProject, started)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		target = p
-	}
-	// Expand leading ~
-	if strings.HasPrefix(target, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			target = filepath.Join(home, target[2:])
-		}
-	}
-	// Relative path without extension → put in default dir
-	if !filepath.IsAbs(target) && !strings.ContainsRune(target, filepath.Separator) {
-		home, _ := os.UserHomeDir()
-		target = filepath.Join(home, defaultExportDir, target)
-	}
-	if filepath.Ext(target) == "" {
-		target += ".md"
-	}
-
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	events := s.hub.History()
-	md := export.Markdown(export.Meta{
-		SessionID:   curID,
-		ProjectPath: projectPath,
-		Started:     started,
-		Exported:    time.Now(),
-	}, events)
-
-	if err := os.WriteFile(target, []byte(md), 0o644); err != nil {
-		http.Error(w, "write: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"path":   target,
-		"bytes":  len(md),
-		"events": len(events),
-	})
-}
-
-// decodeProjectDir best-effort reconstructs a real filesystem path from the
-// encoded project-dir name by probing existing directories.
-func decodeProjectDir(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	raw = strings.TrimLeft(raw, "-")
-	parts := strings.Split(raw, "-")
-	prefix := string(filepath.Separator)
-	i := 0
-	for i < len(parts) {
-		matched := false
-		for j := len(parts); j > i; j-- {
-			candidate := strings.Join(parts[i:j], "-")
-			if candidate == "" {
-				continue
-			}
-			test := filepath.Join(prefix, candidate)
-			if stat, err := os.Stat(test); err == nil && stat.IsDir() {
-				prefix = test
-				i = j
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			i++
-		}
-	}
-	if prefix == string(filepath.Separator) {
-		return "/" + strings.ReplaceAll(raw, "-", "/")
-	}
-	return prefix
+	writeJSON(w, out)
 }
 
 func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
@@ -466,43 +287,174 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"id": info.ID, "project": info.Project})
+	writeJSON(w, map[string]string{"id": info.ID, "project": info.Project})
 }
 
-func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	if s.projectsRoot == "" {
-		_ = json.NewEncoder(w).Encode([]sessionDTO{})
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
-	sessions, err := session.ListAll(s.projectsRoot)
+	var body struct {
+		Path string `json:"path"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	s.mu.Lock()
+	curID := s.currentID
+	projectDir := s.projectDir
+	s.mu.Unlock()
+
+	var started time.Time
+	if s.projectsRoot != "" && projectDir != "" {
+		if list, err := session.List(s.projectsRoot, projectDir); err == nil {
+			for _, si := range list {
+				if si.ID == curID {
+					started = si.FirstEventTime
+					break
+				}
+			}
+		}
+	}
+
+	target, err := resolveExportPath(body.Path, curID, projectDir, started)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	out := make([]sessionDTO, 0, len(sessions))
-	for _, si := range sessions {
-		first, _ := session.ReadFirstUserPrompt(si.Path)
-		short := si.ID
-		if len(short) > 8 {
-			short = short[:8]
-		}
-		s.mu.Lock()
-		curID := s.currentSessionID
-		s.mu.Unlock()
-		out = append(out, sessionDTO{
-			ID:           si.ID,
-			ShortID:      short,
-			Project:      si.Project,
-			ProjectLabel: projectLabel(si.Project),
-			FirstEvent:   si.FirstEventTime,
-			LastEvent:    si.LastEventTime,
-			Size:         si.Size,
-			FirstPrompt:  first,
-			Current:      si.ID == curID,
-			SameProject:  si.Project == s.projectDir,
-		})
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
-	_ = json.NewEncoder(w).Encode(out)
+	events := s.hub.History()
+	md := export.Markdown(export.Meta{
+		SessionID:   curID,
+		ProjectPath: decodeProjectDir(projectDir),
+		Started:     started,
+		Exported:    time.Now(),
+	}, events)
+	if err := os.WriteFile(target, []byte(md), 0o644); err != nil {
+		http.Error(w, "write: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]any{
+		"path":   target,
+		"bytes":  len(md),
+		"events": len(events),
+	})
+}
+
+// ---- helpers ----
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func resolveExportPath(userPath, sessionID, projectDir string, started time.Time) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	defaultDir := filepath.Join(home, defaultExportDir)
+	target := userPath
+	if target == "" {
+		target = defaultFilename(defaultDir, sessionID, projectDir, started)
+	}
+	if strings.HasPrefix(target, "~/") {
+		target = filepath.Join(home, target[2:])
+	}
+	if !filepath.IsAbs(target) && !strings.ContainsRune(target, filepath.Separator) {
+		target = filepath.Join(defaultDir, target)
+	}
+	if filepath.Ext(target) == "" {
+		target += ".md"
+	}
+	return target, nil
+}
+
+func defaultFilename(dir, sessionID, projectDir string, started time.Time) string {
+	short := sessionID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	proj := projectShortName(projectDir)
+	if proj == "" {
+		proj = "project"
+	}
+	date := time.Now()
+	if !started.IsZero() {
+		date = started
+	}
+	name := fmt.Sprintf("%s_%s_%s.md", proj, date.Local().Format("2006-01-02"), short)
+	return filepath.Join(dir, name)
+}
+
+func projectLabel(raw string) string {
+	path := strings.ReplaceAll(raw, "-", "/")
+	parts := strings.Split(path, "/")
+	if len(parts) <= 3 {
+		return path
+	}
+	return ".../" + strings.Join(parts[len(parts)-3:], "/")
+}
+
+// probeRealPath greedily rebuilds a filesystem path from the hyphen-encoded
+// project-dir name (Claude Code replaces `/` with `-`, lossy if a real dir
+// name contains a `-`). Returns matched segments and the deepest real path.
+func probeRealPath(encoded string) (segments []string, full string) {
+	encoded = strings.TrimLeft(encoded, "-")
+	if encoded == "" {
+		return nil, ""
+	}
+	parts := strings.Split(encoded, "-")
+	prefix := string(filepath.Separator)
+	for i := 0; i < len(parts); {
+		matched := false
+		for j := len(parts); j > i; j-- {
+			cand := strings.Join(parts[i:j], "-")
+			if cand == "" {
+				continue
+			}
+			test := filepath.Join(prefix, cand)
+			if stat, err := os.Stat(test); err == nil && stat.IsDir() {
+				segments = append(segments, cand)
+				prefix = test
+				i = j
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			i++
+		}
+	}
+	return segments, prefix
+}
+
+func projectShortName(encoded string) string {
+	segs, _ := probeRealPath(encoded)
+	switch len(segs) {
+	case 0:
+		parts := strings.Split(strings.TrimLeft(encoded, "-"), "-")
+		if len(parts) == 0 || parts[0] == "" {
+			return ""
+		}
+		return parts[len(parts)-1]
+	case 1:
+		return segs[0]
+	default:
+		return segs[len(segs)-2] + "-" + segs[len(segs)-1]
+	}
+}
+
+func decodeProjectDir(encoded string) string {
+	if encoded == "" {
+		return ""
+	}
+	_, full := probeRealPath(encoded)
+	if full == string(filepath.Separator) {
+		return "/" + strings.ReplaceAll(strings.TrimLeft(encoded, "-"), "-", "/")
+	}
+	return full
 }

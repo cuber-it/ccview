@@ -1,13 +1,4 @@
 // Command ccview is a live viewer for Claude Code sessions.
-//
-// Usage:
-//
-//	ccview                         list sessions in the current project
-//	ccview -s <id|prefix|latest>   open a session in the browser
-//	ccview --session <...>         long form
-//	ccview --no-browser            do not open browser; print URL only
-//	ccview --port N                override port
-//	ccview --bind 0.0.0.0          bind address (default 127.0.0.1)
 package main
 
 import (
@@ -26,7 +17,7 @@ import (
 	"github.com/cuber-it/ccview/internal/srv"
 )
 
-// version is set via -ldflags -X at build time.
+// Set at build time via -ldflags "-X main.version=..."
 var version = "dev"
 
 func main() {
@@ -49,7 +40,6 @@ func main() {
 		fmt.Println("ccview", version)
 		return
 	}
-
 	if err := run(sess, port, bind, noBrowser); err != nil {
 		fmt.Fprintln(os.Stderr, "ccview:", err)
 		os.Exit(1)
@@ -67,27 +57,25 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 	}
 	projectDir := session.ProjectDirFromCwd(cwd)
 
-	var initial session.Info
-	hasInitial := false
+	var initial *session.Info
 	if sessSpec != "" {
 		sessions, err := session.List(projectsRoot, projectDir)
 		if err != nil {
-			return fmt.Errorf("cannot list sessions for %s: %w", projectDir, err)
+			return fmt.Errorf("list sessions for %s: %w", projectDir, err)
 		}
-		initial, err = session.Resolve(sessions, sessSpec)
+		info, err := session.Resolve(sessions, sessSpec)
 		if err != nil {
 			return err
 		}
-		hasInitial = true
+		initial = &info
 	}
 
 	ln, addr, err := listenWithFallback(bind, port)
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("http://%s", addr)
-
-	if hasInitial {
+	url := "http://" + addr
+	if initial != nil {
 		fmt.Printf("ccview: session %s\nccview: %s\n", initial.ID, url)
 	} else {
 		fmt.Printf("ccview: %s (Session im Browser wählen)\n", url)
@@ -95,7 +83,6 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -104,37 +91,17 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 		cancel()
 	}()
 
-	cfg := srv.Config{
+	s := srv.New(srv.Config{
 		ProjectsRoot: projectsRoot,
 		ProjectDir:   projectDir,
 		Version:      version,
-	}
-	if hasInitial {
-		cfg.CurrentSessionID = initial.ID
-	}
-	s := srv.New(cfg)
-
+	})
 	if !noBrowser {
 		go openBrowser(url)
 	}
-
-	if hasInitial {
-		go func() {
-			for i := 0; i < 100; i++ {
-				if err := s.SetSession(initial); err == nil {
-					return
-				}
-				time.Sleep(5 * time.Millisecond)
-			}
-			fmt.Fprintln(os.Stderr, "ccview: failed to start initial tailer")
-			cancel()
-		}()
-	}
-
-	return s.Serve(ctx, ln)
+	return s.Serve(ctx, ln, initial)
 }
 
-// listenWithFallback binds bind:port. port==0 → try 12100..12199 in order.
 func listenWithFallback(bind string, port int) (net.Listener, string, error) {
 	try := func(p int) (net.Listener, string, error) {
 		addr := fmt.Sprintf("%s:%d", bind, p)
@@ -149,17 +116,17 @@ func listenWithFallback(bind string, port int) (net.Listener, string, error) {
 	}
 	var lastErr error
 	for p := 12100; p < 12200; p++ {
-		ln, addr, err := try(p)
-		if err == nil {
+		if ln, addr, err := try(p); err == nil {
 			return ln, addr, nil
+		} else {
+			lastErr = err
 		}
-		lastErr = err
 	}
 	return nil, "", fmt.Errorf("no free port in 12100..12199: %w", lastErr)
 }
 
 func openBrowser(url string) {
-	time.Sleep(150 * time.Millisecond) // let the server bind
+	time.Sleep(150 * time.Millisecond)
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "linux":
@@ -173,4 +140,3 @@ func openBrowser(url string) {
 	}
 	_ = cmd.Start()
 }
-
