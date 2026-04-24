@@ -114,7 +114,49 @@
     font-size: 11px;
   }
   .toolbar-left { display: flex; gap: 12px; align-items: center; }
-  .toolbar-right { display: flex; gap: 12px; align-items: center; }
+  .toolbar-right { display: flex; gap: 12px; align-items: center; position: relative; }
+
+  /* Burger menu */
+  .menu-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .menu-toggle:hover { color: var(--fg); border-color: var(--fg); }
+  .menu-toggle.open { color: var(--fg); border-color: var(--fg); }
+  .menu-items {
+    position: absolute;
+    top: calc(var(--toolbar-h) + 2px);
+    right: 0;
+    background: var(--status-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    min-width: 200px;
+    z-index: 200;
+    display: none;
+  }
+  .menu-items.open { display: block; }
+  .menu-items button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 14px;
+    background: none;
+    border: none;
+    color: var(--fg);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+  }
+  .menu-items button:hover { background: var(--highlight); }
+  .menu-items .sep { height: 1px; background: var(--border); margin: 2px 0; }
   .brand { font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
   .theme-switch { display: inline-flex; gap: 4px; }
   .theme-switch button {
@@ -578,6 +620,11 @@
       <button data-theme="sepia">Sepia</button>
     </div>
     <div class="status" id="status">connecting…</div>
+    <button class="menu-toggle" id="menuToggle" title="Menü" aria-label="Menü">☰</button>
+    <div class="menu-items" id="menuItems">
+      <button data-action="save">Speichern</button>
+      <button data-action="save-as">Speichern unter…</button>
+    </div>
   </div>
 </div>
 <div class="favbar" id="favbar"></div>
@@ -625,6 +672,49 @@
   applyPanel(localStorage.getItem("ccview.sidepanel") === "collapsed");
   panelToggle.addEventListener("click", () => {
     applyPanel(!document.body.classList.contains("sp-collapsed"));
+  });
+
+  // ---------- burger menu / export ----------
+  const menuToggle = document.getElementById("menuToggle");
+  const menuItems = document.getElementById("menuItems");
+  const openMenu = (open) => {
+    menuItems.classList.toggle("open", open);
+    menuToggle.classList.toggle("open", open);
+  };
+  menuToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openMenu(!menuItems.classList.contains("open"));
+  });
+  document.addEventListener("click", (e) => {
+    if (!menuItems.contains(e.target) && e.target !== menuToggle) openMenu(false);
+  });
+
+  const exportSession = async (pathOverride) => {
+    try {
+      const r = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pathOverride ? { path: pathOverride } : {}),
+      });
+      if (!r.ok) throw new Error(await r.text() || r.status);
+      const data = await r.json();
+      setStatus("gespeichert: " + data.path, "ok");
+    } catch (err) {
+      setStatus("Export-Fehler: " + err, "err");
+    }
+  };
+
+  menuItems.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    openMenu(false);
+    if (btn.dataset.action === "save") {
+      exportSession(null);
+    } else if (btn.dataset.action === "save-as") {
+      const p = prompt("Dateiname oder Pfad (leer = Default):", "");
+      if (p === null) return;
+      exportSession(p.trim() || null);
+    }
   });
 
   // ---------- favorites ----------

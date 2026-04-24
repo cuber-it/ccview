@@ -58,6 +58,15 @@ func (h *Hub) Subscribe() ([]parse.Event, <-chan parse.Event, func()) {
 	}
 }
 
+// History returns a snapshot of all events published so far.
+func (h *Hub) History() []parse.Event {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([]parse.Event, len(h.history))
+	copy(out, h.history)
+	return out
+}
+
 // Reset clears event history and tells every subscriber to drop its view.
 // Called when the active session changes.
 func (h *Hub) Reset() {

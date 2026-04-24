@@ -41,3 +41,8 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-014: Rahmen für Sessions mit Event am aktuellen Tag (`.today` Klasse)
 - CCVIEW-015: Echte User-Prompts visuell hervorgehoben (lila Left-Border, bold Label), Tool-Result-User als "tool-result" umgelabelt und gedämpft; leere Text-/Thinking-Blöcke gefiltert
 - CCVIEW-016: Favoriten-Leiste oben — bis zu 5 pinnbare Sessions (★ im Sessions-Tab), hellgrüner Hintergrund wenn seit letztem Öffnen neue Events; 15-s-Poll mit Visibility-Check; Klick schaltet + markiert als gesehen
+- CCVIEW-017: Feste Höhen für Toolbar/Favbar via CSS-Variablen — keine Text-Durchsicht beim Scrollen
+- CCVIEW-018: Burger-Menü mit "Speichern" und "Speichern unter…" — Markdown-Export der aktuellen Session-History
+- CCVIEW-018: `internal/export` — Markdown-Renderer mit Prompt-Nummerierung, Edit-Diffs, Tool-Inputs, Thinking in `<details>`, Image-Support
+- CCVIEW-018: `POST /api/export` Endpoint, Filesystem-Probe für saubere Projekt-Kurznamen (`sps-sim-go` statt `home_ucuber_…`)
+- CCVIEW-018: Default-Pfad `~/Workspace/claude-code/sessions/<proj>_<datum>_<short-id>.md`

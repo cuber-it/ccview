@@ -15,6 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"path/filepath"
+
+	"github.com/cuber-it/ccview/internal/export"
 	"github.com/cuber-it/ccview/internal/parse"
 	"github.com/cuber-it/ccview/internal/session"
 	"github.com/cuber-it/ccview/internal/tail"
@@ -64,6 +67,7 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/stream", s.handleStream)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/switch", s.handleSwitch)
+	s.mux.HandleFunc("/api/export", s.handleExport)
 	return s
 }
 
@@ -225,6 +229,191 @@ func projectLabel(raw string) string {
 		return path
 	}
 	return ".../" + strings.Join(parts[len(parts)-3:], "/")
+}
+
+// defaultExportDir is where "Save" (no explicit path) writes to.
+const defaultExportDir = "Workspace/claude-code/sessions"
+
+// defaultExportPath returns ~/Workspace/claude-code/sessions/<proj>_<date>_<shortid>.md
+// based on the currently-viewed session and its header info.
+func defaultExportPath(sessionID, projectDir string, started time.Time) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	base := filepath.Join(home, defaultExportDir)
+	short := sessionID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	proj := projectShortName(projectDir)
+	if proj == "" {
+		proj = "project"
+	}
+	date := time.Now()
+	if !started.IsZero() {
+		date = started
+	}
+	name := fmt.Sprintf("%s_%s_%s.md", proj, date.Local().Format("2006-01-02"), short)
+	return filepath.Join(base, name), nil
+}
+
+// projectShortName reverses Claude Code's lossy `/`→`-` encoding by probing the
+// filesystem greedily for existing directories, then returns the last 2 real
+// path segments joined by "-". Falls back to the last hyphen-segment if no
+// directory lookup succeeds.
+func projectShortName(encoded string) string {
+	encoded = strings.TrimLeft(encoded, "-")
+	if encoded == "" {
+		return ""
+	}
+	parts := strings.Split(encoded, "-")
+	prefix := string(filepath.Separator)
+	real := []string{}
+	i := 0
+	for i < len(parts) {
+		matched := false
+		for j := len(parts); j > i; j-- {
+			candidate := strings.Join(parts[i:j], "-")
+			if candidate == "" {
+				continue
+			}
+			test := filepath.Join(prefix, candidate)
+			if stat, err := os.Stat(test); err == nil && stat.IsDir() {
+				real = append(real, candidate)
+				prefix = test
+				i = j
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			i++ // skip this part; shouldn't happen for real sessions
+		}
+	}
+	switch len(real) {
+	case 0:
+		return parts[len(parts)-1]
+	case 1:
+		return real[0]
+	default:
+		return real[len(real)-2] + "-" + real[len(real)-1]
+	}
+}
+
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Path string `json:"path"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	s.mu.Lock()
+	curID := s.currentSessionID
+	curProject := s.projectDir
+	s.mu.Unlock()
+
+	// Try to enrich meta by looking up the session in the project list.
+	var started time.Time
+	var projectPath string
+	if s.projectsRoot != "" && curProject != "" {
+		if list, err := session.List(s.projectsRoot, curProject); err == nil {
+			for _, si := range list {
+				if si.ID == curID {
+					started = si.FirstEventTime
+					break
+				}
+			}
+		}
+	}
+	projectPath = decodeProjectDir(curProject)
+
+	target := body.Path
+	if target == "" {
+		p, err := defaultExportPath(curID, curProject, started)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		target = p
+	}
+	// Expand leading ~
+	if strings.HasPrefix(target, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			target = filepath.Join(home, target[2:])
+		}
+	}
+	// Relative path without extension → put in default dir
+	if !filepath.IsAbs(target) && !strings.ContainsRune(target, filepath.Separator) {
+		home, _ := os.UserHomeDir()
+		target = filepath.Join(home, defaultExportDir, target)
+	}
+	if filepath.Ext(target) == "" {
+		target += ".md"
+	}
+
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	events := s.hub.History()
+	md := export.Markdown(export.Meta{
+		SessionID:   curID,
+		ProjectPath: projectPath,
+		Started:     started,
+		Exported:    time.Now(),
+	}, events)
+
+	if err := os.WriteFile(target, []byte(md), 0o644); err != nil {
+		http.Error(w, "write: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"path":   target,
+		"bytes":  len(md),
+		"events": len(events),
+	})
+}
+
+// decodeProjectDir best-effort reconstructs a real filesystem path from the
+// encoded project-dir name by probing existing directories.
+func decodeProjectDir(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	raw = strings.TrimLeft(raw, "-")
+	parts := strings.Split(raw, "-")
+	prefix := string(filepath.Separator)
+	i := 0
+	for i < len(parts) {
+		matched := false
+		for j := len(parts); j > i; j-- {
+			candidate := strings.Join(parts[i:j], "-")
+			if candidate == "" {
+				continue
+			}
+			test := filepath.Join(prefix, candidate)
+			if stat, err := os.Stat(test); err == nil && stat.IsDir() {
+				prefix = test
+				i = j
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			i++
+		}
+	}
+	if prefix == string(filepath.Separator) {
+		return "/" + strings.ReplaceAll(raw, "-", "/")
+	}
+	return prefix
 }
 
 func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
