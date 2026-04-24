@@ -7,49 +7,69 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-### Added
+## [0.1.0] — 2026-04-24
 
-- Projekt-Scaffold: Go-Modul, Repo-Struktur, README, Lizenz, .gitignore
-- Konzept-Dokument `docs/CCVIEW-001-konzept.md`
-- CCVIEW-002: `internal/parse` — typsicherer JSONL-Event-Parser (10 Tests)
-- CCVIEW-002: `internal/tail` — Polling-Tailer mit Partial-Line-Handling (6 Tests, race-free)
-- CCVIEW-002: `internal/session` — Projekt-Auflösung, List, Resolve (id/prefix/latest) (9 Tests)
-- CCVIEW-003: `internal/srv` — HTTP-Server, SSE-Hub, embedded Frontend (3 Tests)
-- CCVIEW-003: `internal/srv/static/index.html` — Vanilla-JS-Viewer mit Dark-Theme
-- CCVIEW-004: `cmd/ccview` — CLI mit `-s/--session`, `--port`, `--bind`, `--no-browser`
-- CCVIEW-004: Port-Fallback 12100..12199, Cross-Platform Browser-Open
-- CCVIEW-005: Frontend-Polish — Minimal-Markdown (Code-Fences/Bold/Italic/Inline-Code)
-- CCVIEW-005: Tool-Input-Prettifier für Bash/Read/Edit/Write/Grep/Glob
-- CCVIEW-005: Timestamp-Formatierung, Empty-State, Fehler-Badge auf Tool-Results
-- CCVIEW-006: Makefile — build / test / vet / race / cross / clean
-- CCVIEW-006: `--version` Flag, Versionsinjektion via `-ldflags -X main.version`
-- CCVIEW-006: Cross-Compile für linux-amd64/arm64, darwin-amd64/arm64, windows-amd64
-- CCVIEW-007: Theme-Switcher Dark / Light / Sepia, Auswahl in localStorage persistiert
-- CCVIEW-008: Prompt-Nummerierung #0001+, scrollbares Seitenpanel mit 20-Zeichen-Preview als Sprungmarke
-- CCVIEW-009: Seitenpanel ein-/ausklappbar, Preview mit `...` Suffix wenn gekürzt
-- CCVIEW-010: `latest` sortiert nach letztem Event-Timestamp in der JSONL statt mtime — robust gegen Claude-Code-Cross-Writes
-- CCVIEW-011: Sidepanel-Tabs `Prompts` / `Sessions` — Sessions-Tab listet alle Sessions im Projekt, hover = erster Prompt als Tooltip, aktive Session markiert
-- CCVIEW-011: `GET /api/sessions` Endpoint — liefert pro Session `short_id`, `last_event`, `size`, `first_prompt`, `current`
-- CCVIEW-011: `session.ReadFirstUserPrompt` — liest ersten User-Prompt aus den ersten 64 KB einer JSONL
-- CCVIEW-012: Image-Block-Support im Parser (`base64` + `url`), `<img>` im Frontend
-- CCVIEW-013: `session.ListAll` — scannt alle Projekte unter `~/.claude/projects/*`
-- CCVIEW-013: Sort nach `FirstEventTime` (Session-Start aus JSONL) — stabil gegen Cross-Writes
-- CCVIEW-013: Badge "aktuell" → "offen"; Sessions-Tab zeigt Projekt-Label pro Eintrag
-- CCVIEW-013: Custom Hover-Popup für Sidepanel-Items mit vollem Prompt-Text (bis 600 Zeichen) und Kopier-Command
-- CCVIEW-014: Session-Switch zur Laufzeit — Klick auf Session im Sidepanel lädt diese in Live-Tail
-- CCVIEW-014: `POST /api/switch` Endpoint, `Hub.Reset`, Server übernimmt Tailer-Verwaltung vom `main.go`
-- CCVIEW-014: Rahmen für Sessions mit Event am aktuellen Tag (`.today` Klasse)
-- CCVIEW-015: Echte User-Prompts visuell hervorgehoben (lila Left-Border, bold Label), Tool-Result-User als "tool-result" umgelabelt und gedämpft; leere Text-/Thinking-Blöcke gefiltert
-- CCVIEW-016: Favoriten-Leiste oben — bis zu 5 pinnbare Sessions (★ im Sessions-Tab), hellgrüner Hintergrund wenn seit letztem Öffnen neue Events; 15-s-Poll mit Visibility-Check; Klick schaltet + markiert als gesehen
-- CCVIEW-017: Feste Höhen für Toolbar/Favbar via CSS-Variablen — keine Text-Durchsicht beim Scrollen
-- CCVIEW-018: Burger-Menü mit "Speichern" und "Speichern unter…" — Markdown-Export der aktuellen Session-History
-- CCVIEW-018: `internal/export` — Markdown-Renderer mit Prompt-Nummerierung, Edit-Diffs, Tool-Inputs, Thinking in `<details>`, Image-Support
-- CCVIEW-018: `POST /api/export` Endpoint, Filesystem-Probe für saubere Projekt-Kurznamen (`sps-sim-go` statt `home_ucuber_…`)
-- CCVIEW-018: Default-Pfad `~/Workspace/claude-code/sessions/<proj>_<datum>_<short-id>.md`
-- CCVIEW-019: "kopieren"-Button pro Event-Karte — kopiert Inhalt strukturiert in die Zwischenablage (Text, Tool-Calls als `$ cmd`, Results, Thinking mit Marker)
-- CCVIEW-020: Produktivitäts-Bundle — Auto-Scroll-Pause + "↓ Live"-Pill, Live-Suche (`/`), Event-/Prompt-Zähler in Toolbar, Keyboard-Nav (`j`/`k`/`gg`/`G`/`Esc`/`/`), Filter-Input im Prompts-Tab
-- CCVIEW-021: CLI vereinfacht — `ccview` startet direkt den Viewer, keine Stdout-Liste mehr; `-s` bleibt optional; localStorage merkt die zuletzt geöffnete Session
-- CCVIEW-021: Burger-Menü-Eintrag "Über ccview" mit Info-Modal (Version, uc-it.de, GitHub-Link)
-- CCVIEW-021: `/api/version` Endpoint, Version-Feld in `srv.Config`
-- CCVIEW-022: Bottom-Command-Bar mit Scroll-Pause-Toggle (⏸/▶), Anfang/Ende-Buttons, Keyboard-Hint
-- CCVIEW-023: Interrupt-Prompts (Claude Code `queue-operation enqueue` Events) werden jetzt als User-Prompts gerendert — sie tauchen endlich im Viewer auf
+Erste nutzbare Version. Live-Viewer für Claude-Code-Sessions mit Browser-UI,
+Session-Switcher, Favoriten, Markdown-Export.
+
+### Added — Core
+
+- Go-Modul `github.com/cuber-it/ccview`, Go 1.23
+- `internal/parse` — JSONL-Event-Parser, typsicher, forward-kompatibel
+  (unbekannte Event- und Block-Typen überleben ohne Fehler)
+- `internal/tail` — Polling-Tailer (100 ms) mit Partial-Line-Handling
+  für beliebig lange Zeilen, race-free
+- `internal/session` — Projekt-Discovery, `List` pro Projekt, `ListAll`
+  über alle Projekte, `Resolve` mit Prefix-Match, `ReadFirstEventTime`
+  (Session-Start aus JSONL — stabil gegen Cross-Writes)
+- `internal/srv` — HTTP-Server, SSE-Hub, Session-Switching zur Laufzeit,
+  embedded Frontend (`//go:embed`)
+- `internal/export` — Markdown-Renderer mit Prompt-Nummerierung,
+  Edit-Diffs, Tool-Input-Prettifier, Thinking in `<details>`, Images
+- `cmd/ccview` — CLI-Entry, Port-Fallback 12100..12199, Browser-Auto-Open
+
+### Added — Frontend
+
+- Vanilla-JS, ein embedded `index.html`, kein Build-Schritt
+- Drei Themes (Dark / Light / Sepia), in `localStorage` persistiert
+- Sidepanel ein-/ausklappbar mit Tabs `Prompts` / `Sessions`
+- Prompt-Index mit `#NNNN`-Nummerierung, Sprungmarken, Filter-Input,
+  Hover-Popup mit vollem Prompt-Text
+- Sessions-Tab listet alle Sessions aller Projekte, mit Projekt-Label,
+  Pin-Stern, Klick = Switch zur Laufzeit, Heute-Rahmen
+- Favoriten-Leiste oben (max 5), hellgrün wenn neue Events seit letztem
+  Öffnen (15-s-Poll, visibility-aware)
+- Markdown-Light (Code-Fences, Bold, Italic, Inline-Code)
+- Tool-Input-Prettifier (Bash / Read / Edit / Write / Grep / Glob)
+- Image-Block-Rendering (base64 + URL)
+- Echte User-Prompts visuell hervorgehoben, Tool-Result-User umgelabelt
+- Kopier-Button pro Event-Karte (strukturierter Plain-Text)
+- Burger-Menü: Speichern, Speichern unter…, Über ccview
+- Info-Modal mit Version + Links (uc-it.de, GitHub)
+- Bottom-Command-Bar: Scroll-Pause-Toggle, Anfang, Live, Keyboard-Hint
+
+### Added — Produktivität
+
+- Auto-Scroll-Pause mit "↓ Live"-Pill bei neuen Events wenn pausiert
+- Live-Suche (`/` öffnen) filtert Events, zählt Treffer, scrollt ins Bild
+- Event-/Prompt-Zähler in der Toolbar
+- Keyboard-Nav: `/` `j` `k` `g g` `G` `Esc`
+- Filter-Input im Prompts-Tab
+- Interrupt-Prompts (`queue-operation enqueue`) werden als User-Prompts gerendert
+
+### Added — Build & Release
+
+- Makefile (`build`, `test`, `vet`, `race`, `cross`, `clean`)
+- Cross-Compile für linux-amd64/arm64, darwin-amd64/arm64, windows-amd64
+- `--version` Flag mit Versionsinjektion via `-ldflags -X main.version`
+- `/api/version` Endpoint
+
+### Config
+
+- **CLI** `ccview` (ohne Args) startet den Viewer und merkt die zuletzt
+  geöffnete Session via `localStorage`
+- Keine Config-Datei — alles per localStorage (Theme, Sidepanel-State,
+  Favoriten, Tab, zuletzt geöffnete Session) oder CLI-Flag
+
+[Unreleased]: https://github.com/cuber-it/ccview
+[0.1.0]: https://github.com/cuber-it/ccview/releases/tag/v0.1.0
