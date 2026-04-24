@@ -11,3 +11,10 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 
 - Projekt-Scaffold: Go-Modul, Repo-Struktur, README, Lizenz, .gitignore
 - Konzept-Dokument `docs/CCVIEW-001-konzept.md`
+- CCVIEW-002: `internal/parse` — typsicherer JSONL-Event-Parser (10 Tests)
+- CCVIEW-002: `internal/tail` — Polling-Tailer mit Partial-Line-Handling (6 Tests, race-free)
+- CCVIEW-002: `internal/session` — Projekt-Auflösung, List, Resolve (id/prefix/latest) (9 Tests)
+- CCVIEW-003: `internal/srv` — HTTP-Server, SSE-Hub, embedded Frontend (3 Tests)
+- CCVIEW-003: `internal/srv/static/index.html` — Vanilla-JS-Viewer mit Dark-Theme
+- CCVIEW-004: `cmd/ccview` — CLI mit `-s/--session`, `--port`, `--bind`, `--no-browser`
+- CCVIEW-004: Port-Fallback 12100..12199, Cross-Platform Browser-Open

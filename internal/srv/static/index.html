@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ccview</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e8e8e8;
+    --muted: #8a8a8a;
+    --border: #2e2e2e;
+    --user-bg: #20222b;
+    --user-border: #3a4458;
+    --assistant-bg: #1d2422;
+    --assistant-border: #2e4a3a;
+    --tool-bg: #22232a;
+    --tool-border: #3a3d4a;
+    --tool-name: #bda8f3;
+    --result-bg: #15171b;
+    --result-border: #2a2e38;
+    --error-border: #7a3030;
+    --status-bg: #2a2a2a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .status {
+    position: fixed; top: 0; right: 0;
+    padding: 6px 14px;
+    background: var(--status-bg);
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    border-bottom-left-radius: 6px;
+    z-index: 100;
+  }
+  .status.ok { color: #7acb7a; }
+  .status.err { color: #d37070; }
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+  .event {
+    margin-bottom: 22px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .event.user { background: var(--user-bg); border-color: var(--user-border); }
+  .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
+  .event-header {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .block { margin: 10px 0; }
+  .block:first-child { margin-top: 0; }
+  .block:last-child { margin-bottom: 0; }
+  .block pre, .block p {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: inherit;
+  }
+  .block.thinking {
+    opacity: 0.55;
+    font-style: italic;
+    border-left: 2px solid var(--muted);
+    padding-left: 12px;
+    font-size: 13px;
+  }
+  .block.tool_use {
+    background: var(--tool-bg);
+    border: 1px solid var(--tool-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .block.tool_use .tool-name {
+    color: var(--tool-name);
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+    font-size: 12px;
+  }
+  .block.tool_use pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+    font-size: 12px;
+    color: #cfd3dc;
+  }
+  .block.tool_result {
+    background: var(--result-bg);
+    border: 1px solid var(--result-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+    font-size: 12px;
+    max-height: 320px;
+    overflow: auto;
+  }
+  .block.tool_result.is-error { border-color: var(--error-border); }
+  .block.tool_result.collapsed { max-height: 90px; position: relative; }
+  .block.tool_result.collapsed::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
+    background: linear-gradient(to bottom, transparent, var(--result-bg));
+    pointer-events: none;
+  }
+  .block.tool_result .expand {
+    display: block; margin-top: 6px;
+    background: none; border: none; color: var(--tool-name);
+    font-size: 11px; cursor: pointer; padding: 0;
+  }
+  .empty {
+    color: var(--muted); text-align: center; margin-top: 60px;
+  }
+</style>
+</head>
+<body>
+<div class="status" id="status">connecting…</div>
+<div class="container" id="events"></div>
+<script>
+(() => {
+  const eventsEl = document.getElementById("events");
+  const statusEl = document.getElementById("status");
+  let emptyEl = null;
+  const showEmpty = () => {
+    if (emptyEl) return;
+    emptyEl = document.createElement("div");
+    emptyEl.className = "empty";
+    emptyEl.textContent = "Session ist leer. Warte auf Events…";
+    eventsEl.appendChild(emptyEl);
+  };
+  const clearEmpty = () => {
+    if (emptyEl) { emptyEl.remove(); emptyEl = null; }
+  };
+
+  const setStatus = (text, cls) => {
+    statusEl.textContent = text;
+    statusEl.className = "status" + (cls ? " " + cls : "");
+  };
+
+  const text = (s) => {
+    const p = document.createElement("pre");
+    p.textContent = s || "";
+    return p;
+  };
+
+  const blockEl = (b) => {
+    const el = document.createElement("div");
+    el.className = "block " + (b.kind || "unknown");
+    switch (b.kind) {
+      case "user_prompt":
+      case "text":
+        el.appendChild(text(b.text));
+        break;
+      case "thinking":
+        el.appendChild(text(b.text));
+        break;
+      case "tool_use": {
+        const name = document.createElement("div");
+        name.className = "tool-name";
+        name.textContent = b.tool_name || "tool";
+        el.appendChild(name);
+        if (b.tool_input !== undefined) {
+          el.appendChild(text(JSON.stringify(b.tool_input, null, 2)));
+        }
+        break;
+      }
+      case "tool_result": {
+        if (b.is_error) el.classList.add("is-error");
+        const body = (b.text || "").replace(/\s+$/, "");
+        const long = body.split("\n").length > 10 || body.length > 500;
+        if (long) el.classList.add("collapsed");
+        el.appendChild(text(body));
+        if (long) {
+          const btn = document.createElement("button");
+          btn.className = "expand";
+          btn.textContent = "ausklappen";
+          btn.onclick = () => {
+            el.classList.toggle("collapsed");
+            btn.textContent = el.classList.contains("collapsed") ? "ausklappen" : "einklappen";
+          };
+          el.appendChild(btn);
+        }
+        break;
+      }
+      default:
+        el.appendChild(text(JSON.stringify(b)));
+    }
+    return el;
+  };
+
+  const eventEl = (ev) => {
+    const el = document.createElement("div");
+    el.className = "event " + (ev.kind || "unknown");
+    const head = document.createElement("div");
+    head.className = "event-header";
+    head.textContent = (ev.kind || "?") + (ev.timestamp ? " · " + ev.timestamp : "");
+    el.appendChild(head);
+    (ev.blocks || []).forEach((b) => el.appendChild(blockEl(b)));
+    return el;
+  };
+
+  const shouldRender = (ev) => (ev.blocks && ev.blocks.length > 0);
+
+  const connect = () => {
+    const es = new EventSource("/stream");
+    es.onopen = () => {
+      setStatus("verbunden", "ok");
+      eventsEl.innerHTML = "";
+      emptyEl = null;
+      showEmpty();
+    };
+    es.onmessage = (e) => {
+      clearEmpty();
+      try {
+        const ev = JSON.parse(e.data);
+        if (!shouldRender(ev)) return;
+        eventsEl.appendChild(eventEl(ev));
+        window.scrollTo(0, document.body.scrollHeight);
+      } catch (err) {
+        console.error("parse error", err);
+      }
+    };
+    es.onerror = () => {
+      setStatus("getrennt — reconnecting…", "err");
+    };
+  };
+  connect();
+})();
+</script>
+</body>
+</html>
