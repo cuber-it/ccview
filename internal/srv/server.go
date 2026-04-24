@@ -31,6 +31,7 @@ type Config struct {
 	ProjectsRoot string
 	ProjectDir   string
 	Version      string
+	Verbose      bool
 }
 
 type Server struct {
@@ -39,6 +40,7 @@ type Server struct {
 	projectsRoot string
 	projectDir   string
 	version      string
+	verbose      bool
 
 	mu         sync.Mutex
 	currentID  string
@@ -53,6 +55,7 @@ func New(cfg Config) *Server {
 		projectsRoot: cfg.ProjectsRoot,
 		projectDir:   cfg.ProjectDir,
 		version:      cfg.Version,
+		verbose:      cfg.Verbose,
 	}
 	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
@@ -120,7 +123,9 @@ func (s *Server) SetSession(info session.Info) error {
 func (s *Server) pump(ctx context.Context, path string) {
 	for line := range tail.New(path).Stream(ctx) {
 		if line.Err != nil {
-			fmt.Fprintln(os.Stderr, "ccview: tail:", line.Err)
+			if s.verbose {
+				fmt.Fprintln(os.Stderr, "ccview: tail:", line.Err)
+			}
 			return
 		}
 		ev, err := parse.Parse(line.Data)

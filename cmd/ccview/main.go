@@ -26,6 +26,7 @@ func main() {
 		port        int
 		bind        string
 		noBrowser   bool
+		verbose     bool
 		showVersion bool
 	)
 	flag.StringVar(&sess, "session", "", "session id, prefix, or 'latest'")
@@ -33,6 +34,8 @@ func main() {
 	flag.IntVar(&port, "port", 0, "HTTP port (0 = auto-pick 12100..12199)")
 	flag.StringVar(&bind, "bind", "127.0.0.1", "bind address")
 	flag.BoolVar(&noBrowser, "no-browser", false, "do not open browser")
+	flag.BoolVar(&verbose, "verbose", false, "print status messages to stdout/stderr")
+	flag.BoolVar(&verbose, "v", false, "shorthand for --verbose")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.Parse()
 
@@ -40,13 +43,13 @@ func main() {
 		fmt.Println("ccview", version)
 		return
 	}
-	if err := run(sess, port, bind, noBrowser); err != nil {
+	if err := run(sess, port, bind, noBrowser, verbose); err != nil {
 		fmt.Fprintln(os.Stderr, "ccview:", err)
 		os.Exit(1)
 	}
 }
 
-func run(sessSpec string, port int, bind string, noBrowser bool) error {
+func run(sessSpec string, port int, bind string, noBrowser, verbose bool) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -75,10 +78,13 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 		return err
 	}
 	url := "http://" + addr
-	if initial != nil {
-		fmt.Printf("ccview: session %s\nccview: %s\n", initial.ID, url)
-	} else {
-		fmt.Printf("ccview: %s (Session im Browser wählen)\n", url)
+	fmt.Println(url)
+	if verbose {
+		if initial != nil {
+			fmt.Fprintf(os.Stderr, "ccview: session %s\n", initial.ID)
+		} else {
+			fmt.Fprintln(os.Stderr, "ccview: Session im Browser wählen")
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -87,7 +93,9 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigs
-		fmt.Fprintln(os.Stderr, "\nccview: shutting down")
+		if verbose {
+			fmt.Fprintln(os.Stderr, "\nccview: shutting down")
+		}
 		cancel()
 	}()
 
@@ -95,6 +103,7 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 		ProjectsRoot: projectsRoot,
 		ProjectDir:   projectDir,
 		Version:      version,
+		Verbose:      verbose,
 	})
 	if !noBrowser {
 		go openBrowser(url)

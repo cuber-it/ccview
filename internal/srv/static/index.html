@@ -462,12 +462,12 @@
   .fav-chip .fav-unpin:hover { color: var(--error-fg); background: rgba(0,0,0,0.08); }
   [data-theme="light"] .fav-chip .fav-unpin:hover { background: rgba(0,0,0,0.06); }
 
-  /* Pin button on session-item */
-  .session-item { position: relative; padding-right: 28px; }
-  .session-item .pin-btn {
+  /* Pin + main buttons on session-item */
+  .session-item { position: relative; padding-right: 52px; }
+  .session-item .pin-btn,
+  .session-item .main-btn {
     position: absolute;
     top: 4px;
-    right: 6px;
     background: none;
     border: none;
     color: var(--muted);
@@ -477,8 +477,16 @@
     padding: 2px 4px;
     border-radius: 3px;
   }
-  .session-item .pin-btn:hover { color: var(--tool-accent); }
+  .session-item .pin-btn  { right: 6px; }
+  .session-item .main-btn { right: 30px; font-size: 11px; }
+  .session-item .pin-btn:hover  { color: var(--tool-accent); }
+  .session-item .main-btn:hover { color: #5bb6e8; }
   .session-item .pin-btn.pinned { color: var(--tool-accent); }
+  .session-item .main-btn.active { color: #5bb6e8; }
+  .session-item.is-main {
+    border-color: #5bb6e8;
+    box-shadow: 0 0 0 1px #5bb6e8 inset;
+  }
 
   /* ---------- Hover popup ---------- */
   .popup {
@@ -1038,6 +1046,17 @@
 
   const isFav = (id) => loadFavs().some(f => f.id === id);
 
+  // ---------- main session (second star, exclusive) ----------
+  const getMain = () => localStorage.getItem("ccview.mainSession") || "";
+  const setMain = (id) => {
+    if (id) localStorage.setItem("ccview.mainSession", id);
+    else localStorage.removeItem("ccview.mainSession");
+  };
+  const toggleMain = (sessionId) => {
+    setMain(getMain() === sessionId ? "" : sessionId);
+    loadSessions();
+  };
+
   const refreshSessionsForFavs = async () => {
     if (document.hidden) return;
     try {
@@ -1100,6 +1119,7 @@
   // On startup with no active session, pick a default:
   //  1. the newest session in the current project (`same_project` flag), or
   //  2. the last-opened session from localStorage if still available.
+  // Startup priority: explicit main > current project's newest > last in localStorage.
   const restoreLastSession = async () => {
     try {
       const r = await fetch("/api/sessions");
@@ -1111,6 +1131,8 @@
         localStorage.setItem("ccview.lastSession", cur.id);
         return;
       }
+      const main = getMain();
+      if (main && list.some(s => s.id === main)) { switchSession(main); return; }
       const sameProject = list.find(s => s.same_project);
       if (sameProject) { switchSession(sameProject.id); return; }
       const last = localStorage.getItem("ccview.lastSession");
@@ -1129,12 +1151,14 @@
         return;
       }
       sessionList.innerHTML = "";
+      const mainID = getMain();
       list.forEach(s => {
         const item = document.createElement("div");
         let cls = "session-item";
         if (s.current) cls += " current";
         if (s.same_project) cls += " same-project";
         if (isToday(s.last_event) || isToday(s.first_event)) cls += " today";
+        if (s.id === mainID) cls += " is-main";
         item.className = cls;
         item.dataset.fullId = s.id;
 
@@ -1162,6 +1186,17 @@
         proj.className = "session-project";
         proj.textContent = s.project_label || s.project || "";
         item.appendChild(proj);
+
+        const main = document.createElement("button");
+        const isMain = s.id === mainID;
+        main.className = "main-btn" + (isMain ? " active" : "");
+        main.textContent = isMain ? "●" : "○";
+        main.title = isMain ? "Main-Session entfernen" : "Als Main-Session setzen";
+        main.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleMain(s.id);
+        });
+        item.appendChild(main);
 
         const pin = document.createElement("button");
         pin.className = "pin-btn" + (isFav(s.id) ? " pinned" : "");
