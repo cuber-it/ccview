@@ -175,11 +175,15 @@ func printSessionList(sessions []session.Info, projectDir string) {
 		fmt.Printf("ccview: no sessions found in ~/.claude/projects/%s\n", projectDir)
 		return
 	}
-	fmt.Printf("%-8s  %-19s  %8s  %s\n", "ID", "Last", "Size", "Path")
+	fmt.Printf("%-8s  %-19s  %8s  %s\n", "ID", "Last Event", "Size", "Path")
 	for _, s := range sessions {
+		t := s.LastEventTime
+		if t.IsZero() {
+			t = s.ModTime
+		}
 		fmt.Printf("%-8s  %-19s  %8s  %s\n",
 			s.ID[:8],
-			s.ModTime.Format("2006-01-02 15:04:05"),
+			t.Local().Format("2006-01-02 15:04:05"),
 			fmtSize(s.Size),
 			s.Path,
 		)

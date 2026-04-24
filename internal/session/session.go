@@ -3,8 +3,11 @@
 package session
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,11 +17,76 @@ import (
 
 // Info is metadata about a single session JSONL file.
 type Info struct {
-	ID      string    // full session UUID (filename without .jsonl)
-	Path    string    // absolute path to the .jsonl
-	Project string    // project dir name (with leading dash)
-	Size    int64
-	ModTime time.Time
+	ID            string    // full session UUID (filename without .jsonl)
+	Path          string    // absolute path to the .jsonl
+	Project       string    // project dir name (with leading dash)
+	Size          int64
+	ModTime       time.Time // file mtime — unreliable as "last activity" (Claude Code touches files across sessions)
+	LastEventTime time.Time // timestamp of the last event inside the JSONL; zero if none found
+}
+
+// ReadLastEventTime scans the tail of a JSONL file for the most recent
+// event that carries a "timestamp" field and returns it.
+// Cheap: reads only the last 16 KB.
+func ReadLastEventTime(path string) (time.Time, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer f.Close()
+
+	size, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if size == 0 {
+		return time.Time{}, errors.New("empty file")
+	}
+
+	const tailLen = 16 * 1024
+	start := int64(0)
+	if size > tailLen {
+		start = size - tailLen
+	}
+	if _, err := f.Seek(start, io.SeekStart); err != nil {
+		return time.Time{}, err
+	}
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		return time.Time{}, err
+	}
+	buf = bytes.TrimRight(buf, "\n\r")
+
+	// Walk lines from the end; return the first one with a usable timestamp.
+	for {
+		idx := bytes.LastIndexByte(buf, '\n')
+		var line []byte
+		if idx >= 0 {
+			line = buf[idx+1:]
+			buf = buf[:idx]
+		} else {
+			line = buf
+			buf = nil
+		}
+		if len(line) == 0 {
+			if len(buf) == 0 {
+				break
+			}
+			continue
+		}
+		var tmp struct {
+			Timestamp string `json:"timestamp"`
+		}
+		if json.Unmarshal(line, &tmp) == nil && tmp.Timestamp != "" {
+			if t, err := time.Parse(time.RFC3339Nano, tmp.Timestamp); err == nil {
+				return t, nil
+			}
+		}
+		if len(buf) == 0 {
+			break
+		}
+	}
+	return time.Time{}, errors.New("no timestamped event in tail")
 }
 
 // ProjectsDir returns the default Claude Code projects directory.
@@ -36,7 +104,8 @@ func ProjectDirFromCwd(cwd string) string {
 	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
 }
 
-// List returns all session JSONLs in projectsRoot/projectDir, newest mtime first.
+// List returns all session JSONLs in projectsRoot/projectDir, sorted newest first
+// by LastEventTime (from the JSONL content itself) with ModTime as fallback.
 func List(projectsRoot, projectDir string) ([]Info, error) {
 	dir := filepath.Join(projectsRoot, projectDir)
 	entries, err := os.ReadDir(dir)
@@ -52,16 +121,27 @@ func List(projectsRoot, projectDir string) ([]Info, error) {
 		if err != nil {
 			continue
 		}
+		path := filepath.Join(dir, e.Name())
+		last, _ := ReadLastEventTime(path) // zero on error — sort falls back to mtime
 		out = append(out, Info{
-			ID:      strings.TrimSuffix(e.Name(), ".jsonl"),
-			Path:    filepath.Join(dir, e.Name()),
-			Project: projectDir,
-			Size:    fi.Size(),
-			ModTime: fi.ModTime(),
+			ID:            strings.TrimSuffix(e.Name(), ".jsonl"),
+			Path:          path,
+			Project:       projectDir,
+			Size:          fi.Size(),
+			ModTime:       fi.ModTime(),
+			LastEventTime: last,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
+	sort.Slice(out, func(i, j int) bool { return sortKey(out[i]).After(sortKey(out[j])) })
 	return out, nil
+}
+
+// sortKey picks LastEventTime if known, else ModTime.
+func sortKey(i Info) time.Time {
+	if !i.LastEventTime.IsZero() {
+		return i.LastEventTime
+	}
+	return i.ModTime
 }
 
 // Resolve turns a user-provided session spec into a single Info.

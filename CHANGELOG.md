@@ -26,3 +26,5 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-006: Cross-Compile für linux-amd64/arm64, darwin-amd64/arm64, windows-amd64
 - CCVIEW-007: Theme-Switcher Dark / Light / Sepia, Auswahl in localStorage persistiert
 - CCVIEW-008: Prompt-Nummerierung #0001+, scrollbares Seitenpanel mit 20-Zeichen-Preview als Sprungmarke
+- CCVIEW-009: Seitenpanel ein-/ausklappbar, Preview mit `...` Suffix wenn gekürzt
+- CCVIEW-010: `latest` sortiert nach letztem Event-Timestamp in der JSONL statt mtime — robust gegen Claude-Code-Cross-Writes
