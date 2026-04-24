@@ -20,7 +20,7 @@ Ein Go-Binary (~5 MB). Kein Runtime, keine Dependencies.
 - **Kopier-Button** pro Event — Inhalt strukturiert ins Clipboard
 - **Produktivitäts-Bundle**: Auto-Scroll-Pause, Live-Suche, Keyboard-Nav, Event-Zähler
 - **Interrupt-Prompts** (Claude Codes `queue-operation`) werden sichtbar
-- **Cross-Platform** Binaries für Linux, macOS, Windows (amd64 + arm64)
+- **Cross-Platform** Binaries für Linux, macOS, Windows (amd64 + arm64) — Linux/macOS getestet, Windows untested (Feedback erwünscht)
 
 ## Nutzung
 

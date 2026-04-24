@@ -37,8 +37,12 @@ func ProjectsDir() (string, error) {
 
 // ProjectDirFromCwd derives the Claude Code project-dir name from a cwd.
 // Example: /home/u/Workspace/x → -home-u-Workspace-x.
+// On Windows, drive-letter colons are stripped (best guess — Claude Code's
+// exact Windows encoding is untested).
 func ProjectDirFromCwd(cwd string) string {
-	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+	encoded := strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+	encoded = strings.ReplaceAll(encoded, ":", "")
+	return encoded
 }
 
 // List returns all session JSONLs in projectsRoot/projectDir, sorted
