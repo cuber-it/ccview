@@ -478,7 +478,7 @@
     border-radius: 3px;
   }
   .session-item .pin-btn  { right: 6px; }
-  .session-item .main-btn { right: 30px; font-size: 11px; }
+  .session-item .main-btn { right: 30px; }
   .session-item .pin-btn:hover  { color: var(--tool-accent); }
   .session-item .main-btn:hover { color: #5bb6e8; }
   .session-item .pin-btn.pinned { color: var(--tool-accent); }
@@ -1190,8 +1190,8 @@
         const main = document.createElement("button");
         const isMain = s.id === mainID;
         main.className = "main-btn" + (isMain ? " active" : "");
-        main.textContent = isMain ? "●" : "○";
-        main.title = isMain ? "Main-Session entfernen" : "Als Main-Session setzen";
+        main.textContent = isMain ? "★" : "☆";
+        main.title = isMain ? "Main-Session entfernen" : "Als Main-Session setzen (wird beim Start geladen)";
         main.addEventListener("click", (e) => {
           e.stopPropagation();
           toggleMain(s.id);
