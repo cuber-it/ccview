@@ -168,6 +168,67 @@
     margin: 0 0 8px 10px;
     font-weight: 600;
   }
+  .sidepanel-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 6px 8px 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .sidepanel-tabs button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .sidepanel-tabs button:hover { color: var(--fg); }
+  .sidepanel-tabs button.active {
+    color: var(--fg);
+    background: var(--bg);
+    border-color: var(--fg);
+  }
+  .session-item {
+    display: block;
+    padding: 6px 10px;
+    color: var(--fg);
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+  }
+  .session-item:hover { background: var(--highlight); }
+  .session-item.current { border-color: var(--tool-accent); }
+  .session-item .session-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    color: var(--muted);
+    font-size: 10px;
+    display: flex; justify-content: space-between;
+  }
+  .session-item .session-id .current-badge {
+    color: var(--tool-accent);
+    font-weight: 600;
+  }
+  .session-item .session-preview {
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .session-item .session-date {
+    color: var(--muted);
+    font-size: 10px;
+    margin-top: 2px;
+  }
+  body.sp-collapsed .sidepanel-tabs { display: none; }
   .sidepanel-item {
     display: block;
     padding: 5px 10px;
@@ -354,8 +415,18 @@
 </div>
 <aside class="sidepanel">
   <button class="sidepanel-toggle" id="panelToggle" title="Panel ein-/ausklappen">«</button>
-  <h2>Prompts</h2>
-  <div id="promptList"><div class="sidepanel-empty">noch keine</div></div>
+  <div class="sidepanel-tabs" id="sidepanelTabs">
+    <button data-tab="prompts" class="active">Prompts</button>
+    <button data-tab="sessions">Sessions</button>
+  </div>
+  <div id="tabPrompts">
+    <h2>Prompts</h2>
+    <div id="promptList"><div class="sidepanel-empty">noch keine</div></div>
+  </div>
+  <div id="tabSessions" style="display:none">
+    <h2>Sessions</h2>
+    <div id="sessionList"><div class="sidepanel-empty">lade…</div></div>
+  </div>
 </aside>
 <div class="container" id="events"></div>
 <script>
@@ -387,6 +458,79 @@
   panelToggle.addEventListener("click", () => {
     applyPanel(!document.body.classList.contains("sp-collapsed"));
   });
+
+  // ---------- sidepanel tabs ----------
+  const tabsEl = document.getElementById("sidepanelTabs");
+  const tabPrompts = document.getElementById("tabPrompts");
+  const tabSessions = document.getElementById("tabSessions");
+  const sessionList = document.getElementById("sessionList");
+  let sessionsLoaded = false;
+
+  const formatRelative = (iso) => {
+    if (!iso || iso.startsWith("0001-01-01")) return "";
+    const d = new Date(iso);
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60)     return "jetzt";
+    if (diff < 3600)   return Math.floor(diff / 60) + "m";
+    if (diff < 86400)  return Math.floor(diff / 3600) + "h";
+    if (diff < 604800) return Math.floor(diff / 86400) + "d";
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  };
+
+  const loadSessions = async () => {
+    try {
+      const res = await fetch("/api/sessions");
+      if (!res.ok) throw new Error(res.status);
+      const list = await res.json();
+      if (!list.length) {
+        sessionList.innerHTML = '<div class="sidepanel-empty">keine</div>';
+        return;
+      }
+      sessionList.innerHTML = "";
+      list.forEach(s => {
+        const item = document.createElement("div");
+        item.className = "session-item" + (s.current ? " current" : "");
+        item.title = s.first_prompt || "(kein Prompt gefunden)";
+
+        const id = document.createElement("div");
+        id.className = "session-id";
+        const left = document.createElement("span"); left.textContent = s.short_id;
+        const right = document.createElement("span");
+        right.textContent = s.current ? "aktuell" : formatRelative(s.last_event);
+        if (s.current) right.classList.add("current-badge");
+        id.appendChild(left); id.appendChild(right);
+        item.appendChild(id);
+
+        const prev = document.createElement("div");
+        prev.className = "session-preview";
+        const norm = (s.first_prompt || "").replace(/\s+/g, " ").trim();
+        prev.textContent = norm ? (norm.length > 30 ? norm.slice(0, 30) + "..." : norm) : "(kein Prompt)";
+        item.appendChild(prev);
+
+        sessionList.appendChild(item);
+      });
+    } catch (err) {
+      sessionList.innerHTML = '<div class="sidepanel-empty">Fehler: ' + err + '</div>';
+    }
+  };
+
+  const activateTab = (name) => {
+    tabsEl.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("active", b.dataset.tab === name);
+    });
+    tabPrompts.style.display  = name === "prompts"  ? "" : "none";
+    tabSessions.style.display = name === "sessions" ? "" : "none";
+    localStorage.setItem("ccview.tab", name);
+    if (name === "sessions") {
+      loadSessions(); // refresh every activation
+      sessionsLoaded = true;
+    }
+  };
+  tabsEl.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-tab]");
+    if (b) activateTab(b.dataset.tab);
+  });
+  activateTab(localStorage.getItem("ccview.tab") || "prompts");
 
   // ---------- DOM refs ----------
   const eventsEl   = document.getElementById("events");
@@ -509,6 +653,21 @@
         const body = document.createElement("div");
         body.innerHTML = prettyToolInput(b.tool_name, b.tool_input);
         el.appendChild(body);
+        break;
+      }
+      case "image": {
+        const img = document.createElement("img");
+        img.alt = "(image)";
+        img.style.maxWidth = "100%";
+        img.style.borderRadius = "6px";
+        img.style.border = "1px solid var(--border)";
+        if (b.image_source === "url") {
+          img.src = b.image_data || "";
+        } else if (b.image_data) {
+          const mt = b.image_media_type || "image/png";
+          img.src = `data:${mt};base64,${b.image_data}`;
+        }
+        el.appendChild(img);
         break;
       }
       case "tool_result": {

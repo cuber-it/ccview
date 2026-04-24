@@ -16,7 +16,7 @@ import (
 )
 
 func TestServer_IndexServed(t *testing.T) {
-	s := New()
+	s := New(Config{})
 	ts := httptest.NewServer(s)
 	defer ts.Close()
 
@@ -38,7 +38,7 @@ func TestServer_IndexServed(t *testing.T) {
 }
 
 func TestServer_StreamHistoryAndLive(t *testing.T) {
-	s := New()
+	s := New(Config{})
 	// publish history BEFORE client connects
 	s.Hub().Publish(parse.Event{
 		Kind: parse.KindUser,

@@ -102,7 +102,11 @@ func run(sessSpec string, port int, bind string, noBrowser bool) error {
 		cancel()
 	}()
 
-	s := srv.New()
+	s := srv.New(srv.Config{
+		ProjectsRoot:     projectsRoot,
+		ProjectDir:       projectDir,
+		CurrentSessionID: info.ID,
+	})
 
 	// tail → parse → publish
 	go pump(ctx, info.Path, s.Hub(), cancel)

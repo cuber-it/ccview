@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cuber-it/ccview/internal/parse"
+	"github.com/cuber-it/ccview/internal/session"
 )
 
 //go:embed static
@@ -20,15 +21,29 @@ var staticFS embed.FS
 
 // Server hosts the embedded frontend and an SSE event stream.
 type Server struct {
-	mux *http.ServeMux
-	hub *Hub
+	mux              *http.ServeMux
+	hub              *Hub
+	projectsRoot     string
+	projectDir       string
+	currentSessionID string
 }
 
-// New constructs a Server with its own Hub.
-func New() *Server {
+// Config holds the project context needed to list sibling sessions.
+type Config struct {
+	ProjectsRoot     string // e.g. ~/.claude/projects
+	ProjectDir       string // e.g. -home-ucuber-Workspace-foo
+	CurrentSessionID string // full UUID of the session being viewed
+}
+
+// New constructs a Server with its own Hub. cfg may be zero-valued; in that
+// case /api/sessions will return an empty list.
+func New(cfg Config) *Server {
 	s := &Server{
-		mux: http.NewServeMux(),
-		hub: newHub(),
+		mux:              http.NewServeMux(),
+		hub:              newHub(),
+		projectsRoot:     cfg.ProjectsRoot,
+		projectDir:       cfg.ProjectDir,
+		currentSessionID: cfg.CurrentSessionID,
 	}
 	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
@@ -36,6 +51,7 @@ func New() *Server {
 	}
 	s.mux.Handle("/", http.FileServer(http.FS(sub)))
 	s.mux.HandleFunc("/stream", s.handleStream)
+	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	return s
 }
 
@@ -122,4 +138,44 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+// sessionDTO is the JSON shape returned by /api/sessions.
+type sessionDTO struct {
+	ID          string    `json:"id"`
+	ShortID     string    `json:"short_id"`
+	LastEvent   time.Time `json:"last_event,omitempty"`
+	Size        int64     `json:"size"`
+	FirstPrompt string    `json:"first_prompt,omitempty"`
+	Current     bool      `json:"current"`
+}
+
+func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.projectsRoot == "" || s.projectDir == "" {
+		_ = json.NewEncoder(w).Encode([]sessionDTO{})
+		return
+	}
+	sessions, err := session.List(s.projectsRoot, s.projectDir)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out := make([]sessionDTO, 0, len(sessions))
+	for _, si := range sessions {
+		first, _ := session.ReadFirstUserPrompt(si.Path)
+		short := si.ID
+		if len(short) > 8 {
+			short = short[:8]
+		}
+		out = append(out, sessionDTO{
+			ID:          si.ID,
+			ShortID:     short,
+			LastEvent:   si.LastEventTime,
+			Size:        si.Size,
+			FirstPrompt: first,
+			Current:     si.ID == s.currentSessionID,
+		})
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }

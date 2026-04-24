@@ -144,6 +144,61 @@ func sortKey(i Info) time.Time {
 	return i.ModTime
 }
 
+// ReadFirstUserPrompt returns the text of the first user event with string
+// content inside path (i.e. a real prompt, not a tool-result). Scans only the
+// first ~64 KB of the file.
+func ReadFirstUserPrompt(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 64*1024)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return "", err
+	}
+	if n == 0 {
+		return "", errors.New("empty file")
+	}
+	data := buf[:n]
+
+	for len(data) > 0 {
+		idx := bytes.IndexByte(data, '\n')
+		var line []byte
+		if idx >= 0 {
+			line = data[:idx]
+			data = data[idx+1:]
+		} else {
+			line = data
+			data = nil
+		}
+		if len(line) == 0 {
+			continue
+		}
+		var tmp struct {
+			Type    string `json:"type"`
+			Message struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(line, &tmp) != nil {
+			continue
+		}
+		if tmp.Type != "user" || len(tmp.Message.Content) == 0 {
+			continue
+		}
+		if tmp.Message.Content[0] == '"' {
+			var s string
+			if json.Unmarshal(tmp.Message.Content, &s) == nil && s != "" {
+				return s, nil
+			}
+		}
+	}
+	return "", errors.New("no user prompt found in first 64 KB")
+}
+
 // Resolve turns a user-provided session spec into a single Info.
 // Accepted specs:
 //

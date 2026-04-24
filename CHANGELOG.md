@@ -28,3 +28,7 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-008: Prompt-Nummerierung #0001+, scrollbares Seitenpanel mit 20-Zeichen-Preview als Sprungmarke
 - CCVIEW-009: Seitenpanel ein-/ausklappbar, Preview mit `...` Suffix wenn gekürzt
 - CCVIEW-010: `latest` sortiert nach letztem Event-Timestamp in der JSONL statt mtime — robust gegen Claude-Code-Cross-Writes
+- CCVIEW-011: Sidepanel-Tabs `Prompts` / `Sessions` — Sessions-Tab listet alle Sessions im Projekt, hover = erster Prompt als Tooltip, aktive Session markiert
+- CCVIEW-011: `GET /api/sessions` Endpoint — liefert pro Session `short_id`, `last_event`, `size`, `first_prompt`, `current`
+- CCVIEW-011: `session.ReadFirstUserPrompt` — liest ersten User-Prompt aus den ersten 64 KB einer JSONL
+- CCVIEW-012: Image-Block-Support im Parser (`base64` + `url`), `<img>` im Frontend

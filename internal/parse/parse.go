@@ -28,6 +28,7 @@ const (
 	BlockToolUse    BlockKind = "tool_use"
 	BlockToolResult BlockKind = "tool_result"
 	BlockUserPrompt BlockKind = "user_prompt"
+	BlockImage      BlockKind = "image"
 )
 
 // Event is a single parsed JSONL line.
@@ -50,6 +51,10 @@ type Block struct {
 	ToolInput json.RawMessage `json:"tool_input,omitempty"`
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	IsError   bool            `json:"is_error,omitempty"`
+	// Image blocks: MIME type + source (either "base64" or "url").
+	ImageMediaType string `json:"image_media_type,omitempty"`
+	ImageData      string `json:"image_data,omitempty"` // base64 payload or URL
+	ImageSource    string `json:"image_source,omitempty"` // "base64" or "url"
 }
 
 type rawLine struct {
@@ -76,6 +81,12 @@ type rawBlock struct {
 	ToolUseID string          `json:"tool_use_id"`
 	Content   json.RawMessage `json:"content"`
 	IsError   bool            `json:"is_error"`
+	Source    *struct {
+		Type      string `json:"type"`
+		MediaType string `json:"media_type"`
+		Data      string `json:"data"`
+		URL       string `json:"url"`
+	} `json:"source"`
 }
 
 // Parse converts a single JSONL line into an Event.
@@ -167,6 +178,18 @@ func toBlock(rb rawBlock) Block {
 			ToolUseID: rb.ToolUseID,
 			IsError:   rb.IsError,
 		}
+	case "image":
+		b := Block{Kind: BlockImage}
+		if rb.Source != nil {
+			b.ImageSource = rb.Source.Type
+			b.ImageMediaType = rb.Source.MediaType
+			if rb.Source.Type == "url" {
+				b.ImageData = rb.Source.URL
+			} else {
+				b.ImageData = rb.Source.Data
+			}
+		}
+		return b
 	}
 	return Block{}
 }
