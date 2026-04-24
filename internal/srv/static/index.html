@@ -487,6 +487,27 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     margin-right: 6px;
   }
+  .event-header .event-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+  .event-copy {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .event-copy:hover { color: var(--fg); border-color: var(--border); }
+  .event-copy.copied { color: var(--success-fg); border-color: var(--success-fg); }
 
   .block { margin: 10px 0; }
   .block:first-child { margin-top: 0; }
@@ -1133,6 +1154,39 @@
     } catch { return ""; }
   };
 
+  const eventToText = (ev) => {
+    const parts = [];
+    (ev.blocks || []).forEach(b => {
+      switch (b.kind) {
+        case "user_prompt":
+        case "text":
+          if ((b.text || "").trim()) parts.push(b.text.trim());
+          break;
+        case "thinking":
+          if ((b.text || "").trim()) parts.push("[thinking]\n" + b.text.trim());
+          break;
+        case "tool_use": {
+          const name = b.tool_name || "tool";
+          const inp = b.tool_input;
+          if (inp && typeof inp === "object") {
+            if (name === "Bash" && inp.command) parts.push("[" + name + "]\n$ " + inp.command);
+            else if (name === "Read" && inp.file_path) parts.push("[" + name + "] " + inp.file_path);
+            else parts.push("[" + name + "]\n" + JSON.stringify(inp, null, 2));
+          } else {
+            parts.push("[" + name + "]");
+          }
+          break;
+        }
+        case "tool_result":
+          if ((b.text || "").trim()) {
+            parts.push((b.is_error ? "[result error]\n" : "[result]\n") + b.text.trim());
+          }
+          break;
+      }
+    });
+    return parts.join("\n\n");
+  };
+
   const hasMeaningfulText = (b) => {
     if (!b) return false;
     if (b.kind === "text" || b.kind === "user_prompt" || b.kind === "thinking") {
@@ -1183,7 +1237,33 @@
     }
 
     const right = document.createElement("span");
-    right.textContent = formatTs(ev.timestamp);
+    right.className = "event-right";
+
+    const ts = document.createElement("span");
+    ts.textContent = formatTs(ev.timestamp);
+    right.appendChild(ts);
+
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "event-copy";
+    copyBtn.textContent = "kopieren";
+    copyBtn.title = "Inhalt in Zwischenablage kopieren";
+    copyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const text = eventToText(ev);
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = "kopiert";
+        copyBtn.classList.add("copied");
+        setTimeout(() => {
+          copyBtn.textContent = "kopieren";
+          copyBtn.classList.remove("copied");
+        }, 1200);
+      }).catch(() => {
+        copyBtn.textContent = "Fehler";
+        setTimeout(() => { copyBtn.textContent = "kopieren"; }, 1500);
+      });
+    });
+    right.appendChild(copyBtn);
+
     head.appendChild(left); head.appendChild(right);
     el.appendChild(head);
     (ev.blocks || []).filter(hasMeaningfulText).forEach(b => el.appendChild(blockEl(b)));
