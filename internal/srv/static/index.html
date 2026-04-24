@@ -1097,7 +1097,9 @@
     }
   };
 
-  // Restore last-opened session when the server starts without one.
+  // On startup with no active session, pick a default:
+  //  1. the newest session in the current project (`same_project` flag), or
+  //  2. the last-opened session from localStorage if still available.
   const restoreLastSession = async () => {
     try {
       const r = await fetch("/api/sessions");
@@ -1109,11 +1111,10 @@
         localStorage.setItem("ccview.lastSession", cur.id);
         return;
       }
+      const sameProject = list.find(s => s.same_project);
+      if (sameProject) { switchSession(sameProject.id); return; }
       const last = localStorage.getItem("ccview.lastSession");
-      if (!last) return;
-      if (list.some(s => s.id === last)) {
-        switchSession(last);
-      }
+      if (last && list.some(s => s.id === last)) switchSession(last);
     } catch { /* ignore */ }
   };
 
