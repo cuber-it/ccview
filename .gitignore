@@ -1,0 +1,30 @@
+# Claude Code — lokal, nicht ins Repo
+CLAUDE.md
+.claude/
+docs/
+
+# Build-Artefakte
+build/
+bin/
+dist/
+ccview
+ccview-*
+*.exe
+
+# Go
+*.test
+*.out
+coverage.txt
+vendor/
+
+# Frontend (später)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
