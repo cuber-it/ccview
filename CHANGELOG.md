@@ -1,75 +1,77 @@
 # Changelog
 
-Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
+All notable changes to this project are documented here.
 
-Format: [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
-Versionierung nach [SemVer](https://semver.org/lang/de/).
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
 ## [0.1.0] — 2026-04-24
 
-Erste nutzbare Version. Live-Viewer für Claude-Code-Sessions mit Browser-UI,
-Session-Switcher, Favoriten, Markdown-Export.
+First usable release. Live viewer for Claude Code sessions with a browser UI,
+runtime session switching, favorites, and markdown export.
 
-### Added — Core
+### Core
 
-- Go-Modul `github.com/cuber-it/ccview`, Go 1.23
-- `internal/parse` — JSONL-Event-Parser, typsicher, forward-kompatibel
-  (unbekannte Event- und Block-Typen überleben ohne Fehler)
-- `internal/tail` — Polling-Tailer (100 ms) mit Partial-Line-Handling
-  für beliebig lange Zeilen, race-free
-- `internal/session` — Projekt-Discovery, `List` pro Projekt, `ListAll`
-  über alle Projekte, `Resolve` mit Prefix-Match, `ReadFirstEventTime`
-  (Session-Start aus JSONL — stabil gegen Cross-Writes)
-- `internal/srv` — HTTP-Server, SSE-Hub, Session-Switching zur Laufzeit,
-  embedded Frontend (`//go:embed`)
-- `internal/export` — Markdown-Renderer mit Prompt-Nummerierung,
-  Edit-Diffs, Tool-Input-Prettifier, Thinking in `<details>`, Images
-- `cmd/ccview` — CLI-Entry, Port-Fallback 12100..12199, Browser-Auto-Open
+- Go module `github.com/cuber-it/ccview`, Go 1.23
+- `internal/parse` — typed JSONL event parser, forward-compatible
+  (unknown event and block types are tolerated)
+- `internal/tail` — polling tailer (100 ms) with partial-line handling
+  for arbitrarily long lines, race-free
+- `internal/session` — project discovery, `List` per project, `ListAll`
+  across all projects, `Resolve` with prefix match, `ReadFirstEventTime`
+  (session start from the JSONL — stable against cross-writes)
+- `internal/srv` — HTTP server, SSE hub, runtime session switching,
+  embedded frontend (`//go:embed`)
+- `internal/export` — markdown renderer with prompt numbering,
+  Edit diffs, tool-input prettifier, thinking in `<details>`, images
+- `cmd/ccview` — CLI entrypoint, port fallback 12100..12199, auto-open browser
 
-### Added — Frontend
+### Frontend
 
-- Vanilla-JS, ein embedded `index.html`, kein Build-Schritt
-- Drei Themes (Dark / Light / Sepia), in `localStorage` persistiert
-- Sidepanel ein-/ausklappbar mit Tabs `Prompts` / `Sessions`
-- Prompt-Index mit `#NNNN`-Nummerierung, Sprungmarken, Filter-Input,
-  Hover-Popup mit vollem Prompt-Text
-- Sessions-Tab listet alle Sessions aller Projekte, mit Projekt-Label,
-  Pin-Stern, Klick = Switch zur Laufzeit, Heute-Rahmen
-- Favoriten-Leiste oben (max 5), hellgrün wenn neue Events seit letztem
-  Öffnen (15-s-Poll, visibility-aware)
-- Markdown-Light (Code-Fences, Bold, Italic, Inline-Code)
-- Tool-Input-Prettifier (Bash / Read / Edit / Write / Grep / Glob)
-- Image-Block-Rendering (base64 + URL)
-- Echte User-Prompts visuell hervorgehoben, Tool-Result-User umgelabelt
-- Kopier-Button pro Event-Karte (strukturierter Plain-Text)
-- Burger-Menü: Speichern, Speichern unter…, Über ccview
-- Info-Modal mit Version + Links (uc-it.de, GitHub)
-- Bottom-Command-Bar: Scroll-Pause-Toggle, Anfang, Live, Keyboard-Hint
+- Vanilla JS, a single embedded `index.html`, no build step
+- Three themes (Dark / Light / Sepia), persisted in `localStorage`
+- Collapsible sidepanel with `Prompts` / `Sessions` tabs
+- Prompt index with `#NNNN` numbering, anchor links, filter input,
+  hover popup showing the full prompt
+- Sessions tab lists every session across every project, with project
+  label, pin star, click = runtime switch, today frame
+- Favorites bar (max 5) with light-green tint when new events arrive
+  since last viewed (15-second poll, visibility-aware)
+- Main-session star (exclusive) that loads on startup
+- Light markdown (code fences, bold, italic, inline code)
+- Tool-input prettifier (Bash / Read / Edit / Write / Grep / Glob)
+- Image block rendering (base64 + URL)
+- Real user prompts visually highlighted, tool-result users relabeled
+- Per-event copy button (structured plain text)
+- Burger menu: Save, Save As…, About ccview
+- About modal with version + links (uc-it.de, GitHub)
+- Bottom command bar: scroll-pause toggle, top, live, keyboard hint
+- DE / EN language toggle, persisted
 
-### Added — Produktivität
+### Productivity
 
-- Auto-Scroll-Pause mit "↓ Live"-Pill bei neuen Events wenn pausiert
-- Live-Suche (`/` öffnen) filtert Events, zählt Treffer, scrollt ins Bild
-- Event-/Prompt-Zähler in der Toolbar
-- Keyboard-Nav: `/` `j` `k` `g g` `G` `Esc`
-- Filter-Input im Prompts-Tab
-- Interrupt-Prompts (`queue-operation enqueue`) werden als User-Prompts gerendert
+- Auto-scroll pause with "↓ Live" pill on new events when paused
+- Live search (press `/`) filters events, counts hits, scrolls to first match
+- Event and prompt counter in the toolbar
+- Keyboard: `/` `j` `k` `g g` `G` `Esc`
+- Filter input in the Prompts tab
+- Interrupt prompts (`queue-operation enqueue`) rendered as user prompts
 
-### Added — Build & Release
+### Build & release
 
 - Makefile (`build`, `test`, `vet`, `race`, `cross`, `clean`)
-- Cross-Compile für linux-amd64/arm64, darwin-amd64/arm64, windows-amd64
-- `--version` Flag mit Versionsinjektion via `-ldflags -X main.version`
-- `/api/version` Endpoint
+- Cross-compile for linux-amd64/arm64, darwin-amd64/arm64, windows-amd64
+- `--version` flag, version injected via `-ldflags -X main.version`
+- `/api/version` endpoint
 
 ### Config
 
-- **CLI** `ccview` (ohne Args) startet den Viewer und merkt die zuletzt
-  geöffnete Session via `localStorage`
-- Keine Config-Datei — alles per localStorage (Theme, Sidepanel-State,
-  Favoriten, Tab, zuletzt geöffnete Session) oder CLI-Flag
+- **CLI** `ccview` (no args) starts the viewer and remembers the last-opened
+  session via `localStorage`
+- No config file — everything is either a CLI flag or `localStorage`
+  (theme, language, sidepanel state, favorites, main session, last session, tab)
 
 [Unreleased]: https://github.com/cuber-it/ccview
 [0.1.0]: https://github.com/cuber-it/ccview/releases/tag/v0.1.0
