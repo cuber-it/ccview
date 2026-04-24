@@ -24,3 +24,5 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-006: Makefile — build / test / vet / race / cross / clean
 - CCVIEW-006: `--version` Flag, Versionsinjektion via `-ldflags -X main.version`
 - CCVIEW-006: Cross-Compile für linux-amd64/arm64, darwin-amd64/arm64, windows-amd64
+- CCVIEW-007: Theme-Switcher Dark / Light / Sepia, Auswahl in localStorage persistiert
+- CCVIEW-008: Prompt-Nummerierung #0001+, scrollbares Seitenpanel mit 20-Zeichen-Preview als Sprungmarke

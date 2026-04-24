@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ccview</title>
 <style>
-  :root {
+  /* ---------- Themes ---------- */
+  :root, [data-theme="dark"] {
     --bg: #181818;
     --fg: #e4e4e4;
     --muted: #888;
@@ -20,37 +21,165 @@
     --result-bg: #14161b;
     --result-border: #282c36;
     --error-border: #7a3030;
+    --error-badge-bg: #3a1818;
+    --error-fg: #e37070;
+    --success-fg: #7acb7a;
+    --diff-minus: #d37070;
+    --diff-plus: #7acb7a;
     --code-bg: #0f1116;
     --code-fg: #d6dae3;
+    --panel-bg: #1f1f1f;
     --status-bg: #252525;
+    --strong-color: #f0ead6;
+    --link: #89b0ff;
+    --highlight: #3a3a50;
   }
+  [data-theme="light"] {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --border: #e4e4e4;
+    --user-bg: #f3f6fb;
+    --user-border: #c8d5e8;
+    --assistant-bg: #f3faf5;
+    --assistant-border: #bbdac3;
+    --tool-bg: #f3f3f7;
+    --tool-border: #d4d8e0;
+    --tool-accent: #6a3fcc;
+    --result-bg: #fafafa;
+    --result-border: #e0e0e0;
+    --error-border: #e89090;
+    --error-badge-bg: #fbe6e6;
+    --error-fg: #a33030;
+    --success-fg: #2e7d32;
+    --diff-minus: #a33030;
+    --diff-plus: #2e7d32;
+    --code-bg: #f2f2f4;
+    --code-fg: #2a2a2a;
+    --panel-bg: #f7f7f7;
+    --status-bg: #f0f0f0;
+    --strong-color: #1a1a1a;
+    --link: #2a5dc8;
+    --highlight: #e8ecf5;
+  }
+  [data-theme="sepia"] {
+    --bg: #f5edd6;
+    --fg: #3b2e1e;
+    --muted: #8a7758;
+    --border: #d6c9a9;
+    --user-bg: #ece2c4;
+    --user-border: #c4a67e;
+    --assistant-bg: #e8e2c4;
+    --assistant-border: #a8a174;
+    --tool-bg: #ecdfba;
+    --tool-border: #c9b98a;
+    --tool-accent: #6e4012;
+    --result-bg: #efe6c8;
+    --result-border: #c9b98a;
+    --error-border: #b05050;
+    --error-badge-bg: #e8cfc0;
+    --error-fg: #8a2020;
+    --success-fg: #4a6024;
+    --diff-minus: #8a2020;
+    --diff-plus: #4a6024;
+    --code-bg: #e8dfc0;
+    --code-fg: #3b2e1e;
+    --panel-bg: #ece1be;
+    --status-bg: #e6dcbe;
+    --strong-color: #3b2e1e;
+    --link: #7a3a10;
+    --highlight: #d8c89a;
+  }
+
+  /* ---------- Base ---------- */
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
+  html { scroll-padding-top: 52px; }
   body {
     font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    transition: background 0.2s, color 0.2s;
   }
-  .status {
-    position: fixed; top: 0; right: 0;
-    padding: 5px 14px;
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
     background: var(--status-bg);
-    color: var(--muted);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    border-bottom-left-radius: 6px;
+    border-bottom: 1px solid var(--border);
     z-index: 100;
+    font-size: 11px;
   }
-  .status.ok { color: #7acb7a; }
-  .status.err { color: #d37070; }
+  .toolbar-left { display: flex; gap: 12px; align-items: center; }
+  .toolbar-right { display: flex; gap: 12px; align-items: center; }
+  .brand { font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
+  .theme-switch { display: inline-flex; gap: 4px; }
+  .theme-switch button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 0.02em;
+  }
+  .theme-switch button:hover { color: var(--fg); border-color: var(--fg); }
+  .theme-switch button.active { color: var(--fg); background: var(--bg); border-color: var(--fg); }
+  .status { color: var(--muted); letter-spacing: 0.04em; }
+  .status.ok { color: var(--success-fg); }
+  .status.err { color: var(--error-fg); }
+
+  /* ---------- Side panel (prompt index) ---------- */
+  .sidepanel {
+    position: fixed;
+    top: 40px; left: 0; bottom: 0;
+    width: 220px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 10px 6px;
+    font-size: 12px;
+  }
+  .sidepanel h2 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 8px 10px;
+    font-weight: 600;
+  }
+  .sidepanel-item {
+    display: block;
+    padding: 5px 10px;
+    color: var(--fg);
+    text-decoration: none;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .sidepanel-item:hover { background: var(--highlight); }
+  .sidepanel-item .num { color: var(--muted); margin-right: 8px; }
+  .sidepanel-empty { color: var(--muted); padding: 10px; font-style: italic; font-size: 11px; }
+
+  /* ---------- Events ---------- */
   .container {
     max-width: 860px;
-    margin: 0 auto;
-    padding: 44px 24px 80px;
+    margin: 0 auto 0 220px;
+    padding: 52px 24px 80px;
   }
   .event {
     margin-bottom: 22px;
     padding: 14px 18px;
     border-radius: 10px;
     border: 1px solid var(--border);
+    scroll-margin-top: 52px;
   }
   .event.user { background: var(--user-bg); border-color: var(--user-border); }
   .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
@@ -62,10 +191,18 @@
     margin-bottom: 10px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
   }
+  .event-header .prompt-num {
+    color: var(--tool-accent);
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  }
+
   .block { margin: 10px 0; }
   .block:first-child { margin-top: 0; }
   .block:last-child { margin-bottom: 0; }
+
   .block.text, .block.user_prompt {
     white-space: pre-wrap;
     word-break: break-word;
@@ -73,8 +210,8 @@
   .block.text p, .block.user_prompt p { margin: 0.5em 0; }
   .block.text p:first-child, .block.user_prompt p:first-child { margin-top: 0; }
   .block.text p:last-child, .block.user_prompt p:last-child { margin-bottom: 0; }
-  .block.text code, .block.user_prompt code,
-  .block.thinking code {
+
+  .block.text code, .block.user_prompt code, .block.thinking code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     font-size: 12.5px;
     background: var(--code-bg);
@@ -96,8 +233,9 @@
   .block.text pre code, .block.user_prompt pre code, .block.thinking pre code {
     background: none; border: none; padding: 0; font-size: inherit;
   }
+
   .block.thinking {
-    opacity: 0.62;
+    opacity: 0.65;
     font-style: italic;
     border-left: 2px solid var(--muted);
     padding-left: 12px;
@@ -105,6 +243,7 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+
   .block.tool_use {
     background: var(--tool-bg);
     border: 1px solid var(--tool-border);
@@ -122,6 +261,9 @@
   }
   .block.tool_use pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--code-fg); }
   .block.tool_use .kv { color: var(--muted); }
+  .block.tool_use .diff-minus { color: var(--diff-minus); }
+  .block.tool_use .diff-plus { color: var(--diff-plus); }
+
   .block.tool_result {
     background: var(--result-bg);
     border: 1px solid var(--result-border);
@@ -132,16 +274,17 @@
     max-height: 320px;
     overflow: auto;
     position: relative;
+    color: var(--code-fg);
   }
-  .block.tool_result pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--code-fg); }
+  .block.tool_result pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: inherit; }
   .block.tool_result.is-error { border-color: var(--error-border); }
   .block.tool_result.is-error::before {
     content: "Fehler";
     display: inline-block;
     margin-bottom: 4px;
     padding: 1px 6px;
-    background: #3a1818;
-    color: #e37070;
+    background: var(--error-badge-bg);
+    color: var(--error-fg);
     border-radius: 3px;
     font-size: 10px;
     text-transform: uppercase;
@@ -162,21 +305,64 @@
     font-family: inherit;
   }
   .block.tool_result .expand:hover { text-decoration: underline; }
+
   .empty {
     color: var(--muted); text-align: center; margin-top: 60px;
     font-style: italic;
   }
-  strong { color: #f0ead6; }
+  strong { color: var(--strong-color); }
+  a { color: var(--link); }
+
+  @media (max-width: 720px) {
+    .sidepanel { position: static; width: auto; height: 160px; border-right: none; border-bottom: 1px solid var(--border); margin-top: 40px; }
+    .container { margin-left: auto; padding-top: 12px; }
+  }
 </style>
 </head>
 <body>
-<div class="status" id="status">connecting…</div>
+<div class="toolbar">
+  <div class="toolbar-left">
+    <span class="brand">ccview</span>
+  </div>
+  <div class="toolbar-right">
+    <div class="theme-switch" id="themeSwitch">
+      <button data-theme="dark">Dark</button>
+      <button data-theme="light">Light</button>
+      <button data-theme="sepia">Sepia</button>
+    </div>
+    <div class="status" id="status">connecting…</div>
+  </div>
+</div>
+<aside class="sidepanel">
+  <h2>Prompts</h2>
+  <div id="promptList"><div class="sidepanel-empty">noch keine</div></div>
+</aside>
 <div class="container" id="events"></div>
 <script>
 (() => {
-  const eventsEl = document.getElementById("events");
-  const statusEl = document.getElementById("status");
+  // ---------- theme ----------
+  const html = document.documentElement;
+  const switchEl = document.getElementById("themeSwitch");
+  const applyTheme = (name) => {
+    html.setAttribute("data-theme", name);
+    localStorage.setItem("ccview.theme", name);
+    switchEl.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("active", b.dataset.theme === name);
+    });
+  };
+  applyTheme(localStorage.getItem("ccview.theme") || "dark");
+  switchEl.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-theme]");
+    if (btn) applyTheme(btn.dataset.theme);
+  });
+
+  // ---------- DOM refs ----------
+  const eventsEl   = document.getElementById("events");
+  const statusEl   = document.getElementById("status");
+  const promptList = document.getElementById("promptList");
   let emptyEl = null;
+  let promptCount = 0;
+  let promptListEmpty = true;
 
   const setStatus = (text, cls) => {
     statusEl.textContent = text;
@@ -191,17 +377,32 @@
   };
   const clearEmpty = () => { if (emptyEl) { emptyEl.remove(); emptyEl = null; } };
 
-  // ---------- minimal markdown ----------
-  // Covers: ```fenced code```, `inline code`, **bold**, *italic*, paragraphs.
-  // No headings, lists, links, tables — enough for chat rendering, safe HTML.
-  const escapeHtml = (s) => s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  const resetPromptList = () => {
+    promptCount = 0;
+    promptListEmpty = true;
+    promptList.innerHTML = '<div class="sidepanel-empty">noch keine</div>';
+  };
+
+  const addPromptLink = (num, text) => {
+    if (promptListEmpty) { promptList.innerHTML = ""; promptListEmpty = false; }
+    const a = document.createElement("a");
+    a.className = "sidepanel-item";
+    a.href = `#prompt-${num}`;
+    const numSpan = document.createElement("span");
+    numSpan.className = "num";
+    numSpan.textContent = `#${String(num).padStart(4, "0")}`;
+    a.appendChild(numSpan);
+    const preview = (text || "").replace(/\s+/g, " ").trim().slice(0, 20);
+    a.appendChild(document.createTextNode(preview || "(leer)"));
+    a.title = (text || "").slice(0, 400);
+    promptList.appendChild(a);
+  };
+
+  // ---------- markdown ----------
+  const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   const renderInline = (text) => {
     let s = escapeHtml(text);
-    // inline code first (so `**` inside code is literal)
     s = s.replace(/`([^`\n]+)`/g, (_, c) => `<code>${c}</code>`);
     s = s.replace(/\*\*([^*\n]+)\*\*/g, (_, c) => `<strong>${c}</strong>`);
     s = s.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,;:)!?]|$)/g, (_, pre, c) => `${pre}<em>${c}</em>`);
@@ -217,58 +418,45 @@
         const lang = m[1] ? ` data-lang="${escapeHtml(m[1])}"` : "";
         return `<pre${lang}><code>${escapeHtml(m[2].replace(/\n$/, ""))}</code></pre>`;
       }
-      // wrap each blank-line-separated paragraph
       return part.split(/\n\n+/).filter(p => p).map(p => `<p>${renderInline(p)}</p>`).join("");
     }).join("");
   };
 
-  // ---------- tool-input prettifier ----------
+  const truncate = (s, n) => s.length > n ? s.slice(0, n) + "…" : s;
+
   const prettyToolInput = (name, input) => {
-    if (!input || typeof input !== "object") return JSON.stringify(input, null, 2);
+    if (!input || typeof input !== "object") return escapeHtml(JSON.stringify(input, null, 2));
     const lines = [];
     const push = (label, value, mono = false) => {
       if (value === undefined || value === null || value === "") return;
       lines.push(`<span class="kv">${escapeHtml(label)}:</span> ${mono ? `<code>${escapeHtml(String(value))}</code>` : escapeHtml(String(value))}`);
     };
     switch (name) {
-      case "Bash":
-        return `<pre>$ ${escapeHtml(input.command || "")}</pre>`;
-      case "Read":
-        return `<pre>${escapeHtml(input.file_path || "")}${input.offset ? ` @${input.offset}` : ""}${input.limit ? ` limit=${input.limit}` : ""}</pre>`;
+      case "Bash":  return `<pre>$ ${escapeHtml(input.command || "")}</pre>`;
+      case "Read":  return `<pre>${escapeHtml(input.file_path || "")}${input.offset ? ` @${input.offset}` : ""}${input.limit ? ` limit=${input.limit}` : ""}</pre>`;
       case "Edit":
         push("file", input.file_path);
         if (input.replace_all) push("replace_all", true);
-        if (input.old_string !== undefined) {
-          lines.push(`<pre><span style="color:#d37070">- ${escapeHtml(truncate(input.old_string, 200))}</span></pre>`);
-        }
-        if (input.new_string !== undefined) {
-          lines.push(`<pre><span style="color:#7acb7a">+ ${escapeHtml(truncate(input.new_string, 200))}</span></pre>`);
-        }
+        if (input.old_string !== undefined) lines.push(`<pre><span class="diff-minus">- ${escapeHtml(truncate(input.old_string, 200))}</span></pre>`);
+        if (input.new_string !== undefined) lines.push(`<pre><span class="diff-plus">+ ${escapeHtml(truncate(input.new_string, 200))}</span></pre>`);
         return lines.join("<br>");
       case "Write":
         push("file", input.file_path);
-        if (input.content) {
-          lines.push(`<pre>${escapeHtml(truncate(input.content, 400))}</pre>`);
-        }
+        if (input.content) lines.push(`<pre>${escapeHtml(truncate(input.content, 400))}</pre>`);
         return lines.join("<br>");
       case "Grep":
         push("pattern", input.pattern, true);
-        push("path", input.path);
-        push("type", input.type);
-        push("glob", input.glob);
+        push("path", input.path); push("type", input.type); push("glob", input.glob);
         return lines.join("<br>");
       case "Glob":
-        push("pattern", input.pattern, true);
-        push("path", input.path);
+        push("pattern", input.pattern, true); push("path", input.path);
         return lines.join("<br>");
       default:
         return `<pre>${escapeHtml(JSON.stringify(input, null, 2))}</pre>`;
     }
   };
 
-  const truncate = (s, n) => s.length > n ? s.slice(0, n) + "…" : s;
-
-  // ---------- element builders ----------
+  // ---------- block / event elements ----------
   const blockEl = (b) => {
     const el = document.createElement("div");
     el.className = "block " + (b.kind || "unknown");
@@ -324,13 +512,34 @@
     } catch { return ""; }
   };
 
+  const isRealUserPrompt = (ev) =>
+    ev.kind === "user" &&
+    Array.isArray(ev.blocks) &&
+    ev.blocks.length > 0 &&
+    ev.blocks[0].kind === "user_prompt";
+
   const eventEl = (ev) => {
     const el = document.createElement("div");
     el.className = "event " + (ev.kind || "unknown");
     const head = document.createElement("div");
     head.className = "event-header";
+
     const left = document.createElement("span");
-    left.textContent = ev.kind || "?";
+    if (isRealUserPrompt(ev)) {
+      promptCount += 1;
+      const num = promptCount;
+      const id = `prompt-${num}`;
+      el.id = id;
+      const badge = document.createElement("span");
+      badge.className = "prompt-num";
+      badge.textContent = `#${String(num).padStart(4, "0")}`;
+      left.appendChild(badge);
+      left.appendChild(document.createTextNode(" · " + ev.kind));
+      addPromptLink(num, ev.blocks[0].text || "");
+    } else {
+      left.textContent = ev.kind || "?";
+    }
+
     const right = document.createElement("span");
     right.textContent = formatTs(ev.timestamp);
     head.appendChild(left); head.appendChild(right);
@@ -346,6 +555,7 @@
     es.onopen = () => {
       setStatus("verbunden", "ok");
       eventsEl.innerHTML = "";
+      resetPromptList();
       emptyEl = null;
       showEmpty();
     };
@@ -360,9 +570,7 @@
         console.error("parse error", err);
       }
     };
-    es.onerror = () => {
-      setStatus("getrennt — reconnecting…", "err");
-    };
+    es.onerror = () => setStatus("getrennt — reconnecting…", "err");
   };
   connect();
 })();
