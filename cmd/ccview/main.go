@@ -28,19 +28,29 @@ import (
 	"github.com/cuber-it/ccview/internal/tail"
 )
 
+// version is set via -ldflags -X at build time.
+var version = "dev"
+
 func main() {
 	var (
-		sess      string
-		port      int
-		bind      string
-		noBrowser bool
+		sess        string
+		port        int
+		bind        string
+		noBrowser   bool
+		showVersion bool
 	)
 	flag.StringVar(&sess, "session", "", "session id, prefix, or 'latest'")
 	flag.StringVar(&sess, "s", "", "shorthand for --session")
 	flag.IntVar(&port, "port", 0, "HTTP port (0 = auto-pick 12100..12199)")
 	flag.StringVar(&bind, "bind", "127.0.0.1", "bind address")
 	flag.BoolVar(&noBrowser, "no-browser", false, "do not open browser")
+	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.Parse()
+
+	if showVersion {
+		fmt.Println("ccview", version)
+		return
+	}
 
 	if err := run(sess, port, bind, noBrowser); err != nil {
 		fmt.Fprintln(os.Stderr, "ccview:", err)

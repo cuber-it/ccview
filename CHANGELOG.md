@@ -21,3 +21,6 @@ Versionierung nach [SemVer](https://semver.org/lang/de/).
 - CCVIEW-005: Frontend-Polish — Minimal-Markdown (Code-Fences/Bold/Italic/Inline-Code)
 - CCVIEW-005: Tool-Input-Prettifier für Bash/Read/Edit/Write/Grep/Glob
 - CCVIEW-005: Timestamp-Formatierung, Empty-State, Fehler-Badge auf Tool-Results
+- CCVIEW-006: Makefile — build / test / vet / race / cross / clean
+- CCVIEW-006: `--version` Flag, Versionsinjektion via `-ldflags -X main.version`
+- CCVIEW-006: Cross-Compile für linux-amd64/arm64, darwin-amd64/arm64, windows-amd64
