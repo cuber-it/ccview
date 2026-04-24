@@ -1054,7 +1054,6 @@
   renderFavs();
   refreshSessionsForFavs();
   setInterval(refreshSessionsForFavs, 15000);
-  restoreLastSession();
 
   // ---------- sidepanel tabs ----------
   const tabsEl = document.getElementById("sidepanelTabs");
@@ -1204,6 +1203,7 @@
     if (b) activateTab(b.dataset.tab);
   });
   activateTab(localStorage.getItem("ccview.tab") || "prompts");
+  restoreLastSession();
 
   // ---------- DOM refs ----------
   const eventsEl   = document.getElementById("events");
