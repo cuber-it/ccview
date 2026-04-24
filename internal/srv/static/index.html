@@ -319,6 +319,29 @@
   }
   .event.user { background: var(--user-bg); border-color: var(--user-border); }
   .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
+  .event.user.prompt {
+    border-left: 4px solid var(--tool-accent);
+    padding-left: 14px;
+  }
+  .event.user.prompt .event-label {
+    color: var(--tool-accent);
+    font-weight: 700;
+  }
+  .event.user.tool-context {
+    background: var(--result-bg);
+    border-color: var(--border);
+    opacity: 0.9;
+  }
+  .event.user.tool-context .event-label {
+    color: var(--muted);
+    font-style: italic;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .event.assistant .event-label {
+    color: var(--assistant-border);
+    font-weight: 600;
+  }
   .event-header {
     font-size: 10px;
     color: var(--muted);
@@ -328,11 +351,14 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
   }
+  .event-label { flex: 0 0 auto; }
   .event-header .prompt-num {
     color: var(--tool-accent);
-    font-weight: 600;
+    font-weight: 700;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    margin-right: 6px;
   }
 
   .block { margin: 10px 0; }
@@ -805,30 +831,51 @@
     } catch { return ""; }
   };
 
+  const hasMeaningfulText = (b) => {
+    if (!b) return false;
+    if (b.kind === "text" || b.kind === "user_prompt" || b.kind === "thinking") {
+      return (b.text || "").trim().length > 0;
+    }
+    return true; // tool_use, tool_result, image always count
+  };
+
   const isRealUserPrompt = (ev) =>
     ev.kind === "user" &&
     Array.isArray(ev.blocks) &&
     ev.blocks.length > 0 &&
-    ev.blocks[0].kind === "user_prompt";
+    ev.blocks[0].kind === "user_prompt" &&
+    (ev.blocks[0].text || "").trim().length > 0;
+
+  const isToolResultUser = (ev) =>
+    ev.kind === "user" &&
+    Array.isArray(ev.blocks) &&
+    ev.blocks.length > 0 &&
+    !isRealUserPrompt(ev);
 
   const eventEl = (ev) => {
     const el = document.createElement("div");
-    el.className = "event " + (ev.kind || "unknown");
+    let cls = "event " + (ev.kind || "unknown");
+    if (isRealUserPrompt(ev))      cls += " prompt";
+    else if (isToolResultUser(ev)) cls += " tool-context";
+    el.className = cls;
+
     const head = document.createElement("div");
     head.className = "event-header";
 
     const left = document.createElement("span");
+    left.className = "event-label";
     if (isRealUserPrompt(ev)) {
       promptCount += 1;
       const num = promptCount;
-      const id = `prompt-${num}`;
-      el.id = id;
+      el.id = `prompt-${num}`;
       const badge = document.createElement("span");
       badge.className = "prompt-num";
       badge.textContent = `#${String(num).padStart(4, "0")}`;
       left.appendChild(badge);
-      left.appendChild(document.createTextNode(" · " + ev.kind));
+      left.appendChild(document.createTextNode("user"));
       addPromptLink(num, ev.blocks[0].text || "");
+    } else if (isToolResultUser(ev)) {
+      left.textContent = "tool-result";
     } else {
       left.textContent = ev.kind || "?";
     }
@@ -837,7 +884,7 @@
     right.textContent = formatTs(ev.timestamp);
     head.appendChild(left); head.appendChild(right);
     el.appendChild(head);
-    (ev.blocks || []).forEach((b) => el.appendChild(blockEl(b)));
+    (ev.blocks || []).filter(hasMeaningfulText).forEach(b => el.appendChild(blockEl(b)));
     return el;
   };
 
@@ -889,7 +936,7 @@
     hidePopup();
   });
 
-  const shouldRender = (ev) => ev.blocks && ev.blocks.length > 0;
+  const shouldRender = (ev) => ev.blocks && ev.blocks.some(hasMeaningfulText);
 
   const clearView = () => {
     eventsEl.innerHTML = "";
