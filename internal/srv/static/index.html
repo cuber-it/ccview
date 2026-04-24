@@ -92,9 +92,10 @@
   }
 
   /* ---------- Base ---------- */
+  :root { --toolbar-h: 36px; --favbar-h: 36px; --chrome-h: 72px; /* toolbar + favbar */ }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
-  html { scroll-padding-top: 92px; }
+  html { scroll-padding-top: calc(var(--chrome-h) + 12px); }
   body {
     font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     transition: background 0.2s, color 0.2s;
@@ -103,9 +104,10 @@
   /* ---------- Toolbar ---------- */
   .toolbar {
     position: fixed; top: 0; left: 0; right: 0;
+    height: var(--toolbar-h);
     display: flex; justify-content: space-between; align-items: center;
     gap: 12px;
-    padding: 6px 12px;
+    padding: 0 12px;
     background: var(--status-bg);
     border-bottom: 1px solid var(--border);
     z-index: 100;
@@ -135,7 +137,7 @@
   /* ---------- Side panel (prompt index) ---------- */
   .sidepanel {
     position: fixed;
-    top: 40px; left: 0; bottom: 0;
+    top: var(--toolbar-h); left: 0; bottom: 0;
     width: 220px;
     background: var(--panel-bg);
     border-right: 1px solid var(--border);
@@ -236,10 +238,10 @@
   /* ---------- Favorites bar ---------- */
   .favbar {
     position: fixed;
-    top: 40px;
+    top: var(--toolbar-h);
     left: 220px;
     right: 0;
-    height: 36px;
+    height: var(--favbar-h);
     display: flex;
     gap: 6px;
     padding: 4px 10px;
@@ -389,7 +391,7 @@
   .container {
     max-width: 860px;
     margin: 0 auto 0 220px;
-    padding: 92px 24px 80px;
+    padding: calc(var(--chrome-h) + 12px) 24px 80px;
     transition: margin-left 0.15s;
   }
   body.sp-collapsed .container { margin-left: 28px; }
@@ -398,7 +400,7 @@
     padding: 14px 18px;
     border-radius: 10px;
     border: 1px solid var(--border);
-    scroll-margin-top: 92px;
+    scroll-margin-top: calc(var(--chrome-h) + 12px);
   }
   .event.user { background: var(--user-bg); border-color: var(--user-border); }
   .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
