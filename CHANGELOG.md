@@ -7,6 +7,16 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Per-block collapse with type-specific defaults: real user prompts 5 lines,
+  assistant blocks (text / thinking / tool_use) 3 lines each, tool_result
+  1 line. Above the cap, a `mehr` / `more` button appears. For very long
+  content (> 10 lines), a second click reveals a 10-line preview marked
+  `<MORE>`; a third click shows everything. Removes the previous fixed
+  320 px cap on tool_result and the hardcoded `truncate(...)` of Edit and
+  Write tool inputs (200 / 400 chars) — full content is now reachable.
+
 ### Refactor
 
 - Frontend: split monolithic `internal/srv/static/index.html` (1945 lines) into

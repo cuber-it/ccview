@@ -36,10 +36,10 @@
       evt_copy: "kopieren",
       evt_copied: "kopiert",
       evt_copy_error: "Fehler",
-      evt_expand: "ausklappen",
-      evt_collapse: "einklappen",
       evt_error_badge: "Fehler",
       evt_thinking: "thinking",
+      more: "mehr",
+      less: "weniger",
       event_user: "user",
       event_tool_result: "tool-result",
       fav_add: "Als Favorit pinnen",
@@ -94,10 +94,10 @@
       evt_copy: "copy",
       evt_copied: "copied",
       evt_copy_error: "error",
-      evt_expand: "expand",
-      evt_collapse: "collapse",
       evt_error_badge: "error",
       evt_thinking: "thinking",
+      more: "more",
+      less: "less",
       event_user: "user",
       event_tool_result: "tool-result",
       fav_add: "Pin as favorite",
@@ -617,8 +617,6 @@
     }).join("");
   };
 
-  const truncate = (s, n) => s.length > n ? s.slice(0, n) + "…" : s;
-
   const prettyToolInput = (name, input) => {
     if (!input || typeof input !== "object") return escapeHtml(JSON.stringify(input, null, 2));
     const lines = [];
@@ -632,12 +630,12 @@
       case "Edit":
         push("file", input.file_path);
         if (input.replace_all) push("replace_all", true);
-        if (input.old_string !== undefined) lines.push(`<pre><span class="diff-minus">- ${escapeHtml(truncate(input.old_string, 200))}</span></pre>`);
-        if (input.new_string !== undefined) lines.push(`<pre><span class="diff-plus">+ ${escapeHtml(truncate(input.new_string, 200))}</span></pre>`);
+        if (input.old_string !== undefined) lines.push(`<pre><span class="diff-minus">- ${escapeHtml(input.old_string)}</span></pre>`);
+        if (input.new_string !== undefined) lines.push(`<pre><span class="diff-plus">+ ${escapeHtml(input.new_string)}</span></pre>`);
         return lines.join("<br>");
       case "Write":
         push("file", input.file_path);
-        if (input.content) lines.push(`<pre>${escapeHtml(truncate(input.content, 400))}</pre>`);
+        if (input.content) lines.push(`<pre>${escapeHtml(input.content)}</pre>`);
         return lines.join("<br>");
       case "Grep":
         push("pattern", input.pattern, true);
@@ -652,25 +650,94 @@
   };
 
   // ---------- block / event elements ----------
+  // Default visual cap (in lines) per block kind. Above this, a "mehr" button
+  // appears. For very long content (> STAGE2_CAP lines), a second click reveals
+  // a 10-line preview marked with "<MORE>" before the third click shows all.
+  const STAGE2_CAP = 10;
+  const BLOCK_CAPS = {
+    user_prompt: 5,
+    text: 3,
+    thinking: 3,
+    tool_use: 3,
+    tool_result: 1,
+  };
+
+  const applyClamp = (blockEl, cap) => {
+    const content = blockEl.querySelector(".block-content");
+    if (!content || !cap) return;
+    content.style.setProperty("--clamp-lines", cap);
+    content.classList.add("clamped");
+    // Reading scrollHeight forces layout — we now know if content overflows.
+    if (content.scrollHeight <= content.clientHeight + 2) {
+      content.classList.remove("clamped");
+      content.style.removeProperty("--clamp-lines");
+      return;
+    }
+    let stage = 1; // 1 = default cap, 2 = 10-line preview, 3 = full
+    const btn = document.createElement("button");
+    btn.className = "more-btn";
+    blockEl.appendChild(btn);
+    const apply = () => {
+      content.classList.remove("clamped");
+      content.style.removeProperty("--clamp-lines");
+      if (stage === 1) {
+        content.classList.add("clamped");
+        content.style.setProperty("--clamp-lines", cap);
+        btn.textContent = t("more");
+      } else if (stage === 2) {
+        content.classList.add("clamped");
+        content.style.setProperty("--clamp-lines", STAGE2_CAP);
+        btn.textContent = "<MORE>";
+      } else {
+        btn.textContent = t("less");
+      }
+    };
+    btn.onclick = () => {
+      if (stage === 1) {
+        // Skip stage 2 if the content already fits within the 10-line cap.
+        content.classList.add("clamped");
+        content.style.setProperty("--clamp-lines", STAGE2_CAP);
+        stage = (content.scrollHeight > content.clientHeight + 2) ? 2 : 3;
+      } else if (stage === 2) {
+        stage = 3;
+      } else {
+        stage = 1;
+      }
+      apply();
+    };
+    apply();
+  };
+
   const blockEl = (b) => {
     const el = document.createElement("div");
     el.className = "block " + (b.kind || "unknown");
+    const makeContent = () => {
+      const c = document.createElement("div");
+      c.className = "block-content";
+      return c;
+    };
     switch (b.kind) {
       case "text":
-      case "user_prompt":
-        el.innerHTML = renderMarkdown(b.text || "");
+      case "user_prompt": {
+        const c = makeContent();
+        c.innerHTML = renderMarkdown(b.text || "");
+        el.appendChild(c);
         break;
-      case "thinking":
-        el.textContent = b.text || "";
+      }
+      case "thinking": {
+        const c = makeContent();
+        c.textContent = b.text || "";
+        el.appendChild(c);
         break;
+      }
       case "tool_use": {
         const name = document.createElement("div");
         name.className = "tool-name";
         name.textContent = b.tool_name || "tool";
         el.appendChild(name);
-        const body = document.createElement("div");
-        body.innerHTML = prettyToolInput(b.tool_name, b.tool_input);
-        el.appendChild(body);
+        const c = makeContent();
+        c.innerHTML = prettyToolInput(b.tool_name, b.tool_input);
+        el.appendChild(c);
         break;
       }
       case "image": {
@@ -696,22 +763,11 @@
           badge.textContent = t("evt_error_badge");
           el.appendChild(badge);
         }
-        const body = (b.text || "").replace(/\s+$/, "");
-        const long = body.split("\n").length > 10 || body.length > 500;
-        if (long) el.classList.add("collapsed");
+        const c = makeContent();
         const pre = document.createElement("pre");
-        pre.textContent = body;
-        el.appendChild(pre);
-        if (long) {
-          const btn = document.createElement("button");
-          btn.className = "expand";
-          btn.textContent = t("evt_expand");
-          btn.onclick = () => {
-            const collapsed = el.classList.toggle("collapsed");
-            btn.textContent = collapsed ? t("evt_expand") : t("evt_collapse");
-          };
-          el.appendChild(btn);
-        }
+        pre.textContent = (b.text || "").replace(/\s+$/, "");
+        c.appendChild(pre);
+        el.appendChild(c);
         break;
       }
       default:
@@ -840,7 +896,11 @@
 
     head.appendChild(left); head.appendChild(right);
     el.appendChild(head);
-    (ev.blocks || []).filter(hasMeaningfulText).forEach(b => el.appendChild(blockEl(b)));
+    (ev.blocks || []).filter(hasMeaningfulText).forEach(b => {
+      const node = blockEl(b);
+      el.appendChild(node);
+      applyClamp(node, BLOCK_CAPS[b.kind]);
+    });
     return el;
   };
 

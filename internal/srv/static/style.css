@@ -734,9 +734,6 @@ body.sp-collapsed .bottombar { left: 28px; }
   padding: 10px 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   font-size: 12.5px;
-  max-height: 320px;
-  overflow: auto;
-  position: relative;
   color: var(--code-fg);
 }
 .block.tool_result pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: inherit; }
@@ -752,21 +749,34 @@ body.sp-collapsed .bottombar { left: 28px; }
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.block.tool_result.collapsed { max-height: 100px; overflow: hidden; }
-.block.tool_result.collapsed::after {
-  content: "";
-  position: absolute; left: 0; right: 0; bottom: 0; height: 48px;
-  background: linear-gradient(to bottom, transparent, var(--result-bg));
-  pointer-events: none;
+
+/* ---------- Per-block clamp ---------- */
+.block-content { position: relative; }
+.block-content.clamped {
+  max-height: calc(var(--clamp-lines, 3) * 1.55em);
+  overflow: hidden;
 }
-.block.tool_result .expand {
+.block.tool_use .block-content.clamped,
+.block.tool_result .block-content.clamped {
+  /* extra slack for blocks with vertical padding around content */
+  max-height: calc(var(--clamp-lines, 3) * 1.55em + 0.4em);
+}
+.more-btn {
   display: inline-block;
-  margin-top: 8px;
-  background: none; border: none; color: var(--tool-accent);
-  font-size: 11px; cursor: pointer; padding: 0;
+  margin-top: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-size: 10px;
   font-family: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.6;
 }
-.block.tool_result .expand:hover { text-decoration: underline; }
+.more-btn:hover { color: var(--fg); border-color: var(--fg); }
 
 .empty {
   color: var(--muted); text-align: center; margin-top: 60px;
