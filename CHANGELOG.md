@@ -7,6 +7,8 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-27
+
 ### Changed
 
 - Stronger visual separation in the timeline: real user prompts get a 6 px
@@ -23,14 +25,14 @@ Versioning follows [SemVer](https://semver.org/).
   1 line. Above the cap, a `mehr` / `more` button appears. For very long
   content (> 10 lines), a second click reveals a 10-line preview marked
   `<WEITER>` / `<MORE>` (localized); a third click shows everything.
-  Removes the previous fixed
-  320 px cap on tool_result and the hardcoded `truncate(...)` of Edit and
-  Write tool inputs (200 / 400 chars) — full content is now reachable.
+  Removes the previous fixed 320 px cap on tool_result and the hardcoded
+  `truncate(...)` of Edit and Write tool inputs (200 / 400 chars) — full
+  content is now reachable.
 
 ### Refactor
 
 - Frontend: split monolithic `internal/srv/static/index.html` (1945 lines) into
-  `index.html` (82 lines), `style.css` (781 lines), `app.js` (1080 lines).
+  `index.html` (82 lines), `style.css` (~830 lines), `app.js` (~1140 lines).
   No build step, served via the same `//go:embed static` tree. Test updated
   to verify the `app.js` reference and fetch.
 - `srv/server.go: handleStream` split into a new `srv/sse.go` with `sseWriter`
@@ -105,5 +107,6 @@ runtime session switching, favorites, and markdown export.
 - No config file — everything is either a CLI flag or `localStorage`
   (theme, language, sidepanel state, favorites, main session, last session, tab)
 
-[Unreleased]: https://github.com/cuber-it/ccview
+[Unreleased]: https://github.com/cuber-it/ccview/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cuber-it/ccview/releases/tag/v0.2.0
 [0.1.0]: https://github.com/cuber-it/ccview/releases/tag/v0.1.0
