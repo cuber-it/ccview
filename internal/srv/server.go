@@ -147,69 +147,20 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
+	sw, ok := newSSEWriter(w)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
-	h := w.Header()
-	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-cache")
-	h.Set("Connection", "keep-alive")
-	h.Set("X-Accel-Buffering", "no")
-
 	hist, ch, unsub := s.hub.Subscribe()
 	defer unsub()
-
-	// Initial comment opens the stream for the browser even with empty history.
-	if _, err := fmt.Fprint(w, ": ok\n\n"); err != nil {
+	if !sw.open() {
 		return
 	}
-	flusher.Flush()
-
-	write := func(ev parse.Event) bool {
-		if ev.Kind == kindReset {
-			if _, err := fmt.Fprint(w, "event: reset\ndata: {}\n\n"); err != nil {
-				return false
-			}
-			flusher.Flush()
-			return true
-		}
-		data, err := json.Marshal(ev)
-		if err != nil {
-			return true
-		}
-		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-			return false
-		}
-		flusher.Flush()
-		return true
+	if !replayHistory(sw, hist) {
+		return
 	}
-
-	for _, ev := range hist {
-		if !write(ev) {
-			return
-		}
-	}
-
-	ctx := r.Context()
-	keepalive := time.NewTicker(20 * time.Second)
-	defer keepalive.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case ev, ok := <-ch:
-			if !ok || !write(ev) {
-				return
-			}
-		case <-keepalive.C:
-			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
-				return
-			}
-			flusher.Flush()
-		}
-	}
+	streamLive(r.Context(), sw, ch)
 }
 
 type sessionDTO struct {
