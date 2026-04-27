@@ -897,11 +897,19 @@
     head.appendChild(left); head.appendChild(right);
     el.appendChild(head);
     (ev.blocks || []).filter(hasMeaningfulText).forEach(b => {
-      const node = blockEl(b);
-      el.appendChild(node);
-      applyClamp(node, BLOCK_CAPS[b.kind]);
+      el.appendChild(blockEl(b));
     });
     return el;
+  };
+
+  // Apply per-block clamps to an event AFTER it is in the document, so
+  // scrollHeight/clientHeight reflect the real layout.
+  const applyEventClamps = (eventNode, ev) => {
+    const blocks = (ev.blocks || []).filter(hasMeaningfulText);
+    const nodes = eventNode.querySelectorAll(":scope > .block");
+    blocks.forEach((b, i) => {
+      if (nodes[i]) applyClamp(nodes[i], BLOCK_CAPS[b.kind]);
+    });
   };
 
   // ---------- hover popup ----------
@@ -1124,6 +1132,7 @@
           node.hidden = !node.textContent.toLowerCase().includes(lo);
         }
         eventsEl.appendChild(node);
+        applyEventClamps(node, ev);
         bumpStats(+1);
         if (atBottom && !scrollPaused) {
           window.scrollTo(0, document.body.scrollHeight);
