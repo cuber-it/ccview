@@ -600,11 +600,11 @@ body.sp-collapsed .bottombar { left: 28px; }
 .event.user { background: var(--user-bg); border-color: var(--user-border); }
 .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
 .event.user.prompt {
-  border-left: 4px solid var(--tool-accent);
-  padding-left: 14px;
+  border-left: 6px solid var(--success-fg);
+  padding-left: 12px;
 }
 .event.user.prompt .event-label {
-  color: var(--tool-accent);
+  color: var(--success-fg);
   font-weight: 700;
 }
 .event.user.tool-context {
@@ -618,9 +618,13 @@ body.sp-collapsed .bottombar { left: 28px; }
   text-transform: none;
   letter-spacing: 0;
 }
+.event.assistant {
+  border-left: 6px solid var(--link);
+  padding-left: 12px;
+}
 .event.assistant .event-label {
-  color: var(--assistant-border);
-  font-weight: 600;
+  color: var(--link);
+  font-weight: 700;
 }
 .event-header {
   font-size: 10px;
@@ -696,6 +700,45 @@ body.sp-collapsed .bottombar { left: 28px; }
 .block.text pre code, .block.user_prompt pre code, .block.thinking pre code {
   background: none; border: none; padding: 0; font-size: inherit;
 }
+
+/* Markdown elements inside text / user_prompt blocks */
+.block.text h1, .block.user_prompt h1,
+.block.text h2, .block.user_prompt h2,
+.block.text h3, .block.user_prompt h3,
+.block.text h4, .block.user_prompt h4,
+.block.text h5, .block.user_prompt h5,
+.block.text h6, .block.user_prompt h6 {
+  font-weight: 600;
+  margin: 0.6em 0 0.3em 0;
+  line-height: 1.3;
+}
+.block.text h1, .block.user_prompt h1 { font-size: 1.35em; }
+.block.text h2, .block.user_prompt h2 { font-size: 1.2em; }
+.block.text h3, .block.user_prompt h3 { font-size: 1.08em; }
+.block.text h4, .block.user_prompt h4,
+.block.text h5, .block.user_prompt h5,
+.block.text h6, .block.user_prompt h6 { font-size: 1em; }
+.block.text :first-child, .block.user_prompt :first-child { margin-top: 0; }
+.block.text :last-child, .block.user_prompt :last-child { margin-bottom: 0; }
+.block.text ul, .block.text ol,
+.block.user_prompt ul, .block.user_prompt ol {
+  margin: 0.4em 0;
+  padding-left: 24px;
+}
+.block.text li, .block.user_prompt li { margin: 0.2em 0; }
+.block.text blockquote, .block.user_prompt blockquote {
+  border-left: 3px solid var(--border);
+  margin: 0.5em 0;
+  padding: 2px 12px;
+  color: var(--muted);
+}
+.block.text a, .block.user_prompt a { color: var(--link); }
+.block.text hr, .block.user_prompt hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.8em 0;
+}
+.block.text del, .block.user_prompt del { color: var(--muted); }
 
 .block.thinking {
   opacity: 0.65;

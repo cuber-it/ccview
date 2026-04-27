@@ -9,6 +9,13 @@ Versioning follows [SemVer](https://semver.org/).
 
 ### Changed
 
+- Stronger visual separation in the timeline: real user prompts get a 6 px
+  green left bar, assistant events a 6 px blue bar, tool-context user
+  events stay muted. Header labels colored to match.
+- Markdown rendering in `text` and `user_prompt` blocks now covers headings
+  (`#`–`######`), unordered and ordered lists, blockquotes, links, horizontal
+  rules, and strikethrough — on top of the existing fenced/inline code,
+  bold, and italic. `tool_result` stays raw `<pre>` (matches Claude Code).
 - Per-block collapse with type-specific defaults: real user prompts 5 lines,
   assistant blocks (text / thinking / tool_use) 3 lines each, tool_result
   1 line. Above the cap, a `mehr` / `more` button appears. For very long

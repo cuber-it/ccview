@@ -600,14 +600,75 @@
 
   const renderInline = (text) => {
     let s = escapeHtml(text);
+    // links: [text](url)
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,
+      (_, txt, url) => `<a href="${url}" target="_blank" rel="noopener">${txt}</a>`);
     s = s.replace(/`([^`\n]+)`/g, (_, c) => `<code>${c}</code>`);
     s = s.replace(/\*\*([^*\n]+)\*\*/g, (_, c) => `<strong>${c}</strong>`);
     s = s.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,;:)!?]|$)/g, (_, pre, c) => `${pre}<em>${c}</em>`);
+    s = s.replace(/~~([^~\n]+)~~/g, (_, c) => `<del>${c}</del>`);
     return s;
+  };
+
+  // Block-level markdown: walks lines, dispatches on heading / list / quote /
+  // hr / paragraph. Fenced code blocks are sliced out by renderMarkdown first.
+  const renderBlocks = (text) => {
+    if (!text || !text.trim()) return "";
+    const lines = text.split("\n");
+    const out = [];
+    const isSpecial = (l) => /^(#{1,6}\s|>|[-*+]\s|\d+\.\s|---+\s*$)/.test(l);
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) { i++; continue; }
+      const h = line.match(/^(#{1,6})\s+(.+)$/);
+      if (h) {
+        out.push(`<h${h[1].length}>${renderInline(h[2])}</h${h[1].length}>`);
+        i++; continue;
+      }
+      if (/^---+\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+      if (line.startsWith(">")) {
+        const buf = [];
+        while (i < lines.length && lines[i].startsWith(">")) {
+          buf.push(lines[i].replace(/^>\s?/, ""));
+          i++;
+        }
+        out.push(`<blockquote>${renderBlocks(buf.join("\n"))}</blockquote>`);
+        continue;
+      }
+      if (/^[-*+]\s/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^[-*+]\s/.test(lines[i])) {
+          items.push(`<li>${renderInline(lines[i].replace(/^[-*+]\s+/, ""))}</li>`);
+          i++;
+        }
+        out.push(`<ul>${items.join("")}</ul>`);
+        continue;
+      }
+      if (/^\d+\.\s/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+          items.push(`<li>${renderInline(lines[i].replace(/^\d+\.\s+/, ""))}</li>`);
+          i++;
+        }
+        out.push(`<ol>${items.join("")}</ol>`);
+        continue;
+      }
+      // Paragraph: collect consecutive non-empty, non-special lines.
+      const buf = [];
+      while (i < lines.length && lines[i].trim() && !isSpecial(lines[i])) {
+        buf.push(lines[i]);
+        i++;
+      }
+      if (buf.length) out.push(`<p>${renderInline(buf.join("\n"))}</p>`);
+    }
+    return out.join("");
   };
 
   const renderMarkdown = (text) => {
     if (!text) return "";
+    // Pull out fenced code blocks first so their content isn't touched by
+    // the block walker.
     const parts = text.split(/(```[a-zA-Z0-9_-]*\n[\s\S]*?```)/g);
     return parts.map(part => {
       const m = part.match(/^```([a-zA-Z0-9_-]*)\n([\s\S]*?)```$/);
@@ -615,7 +676,7 @@
         const lang = m[1] ? ` data-lang="${escapeHtml(m[1])}"` : "";
         return `<pre${lang}><code>${escapeHtml(m[2].replace(/\n$/, ""))}</code></pre>`;
       }
-      return part.split(/\n\n+/).filter(p => p).map(p => `<p>${renderInline(p)}</p>`).join("");
+      return renderBlocks(part);
     }).join("");
   };
 
