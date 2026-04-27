@@ -26,6 +26,8 @@
   --strong-color: #f0ead6;
   --link: #89b0ff;
   --highlight: #3a3a50;
+  --prompt-accent: #ff9d4d;
+  --assistant-accent: #4dd0d6;
 }
 [data-theme="light"] {
   --bg: #ffffff;
@@ -54,6 +56,8 @@
   --strong-color: #1a1a1a;
   --link: #2a5dc8;
   --highlight: #e8ecf5;
+  --prompt-accent: #c2570c;
+  --assistant-accent: #0e7c8a;
 }
 [data-theme="sepia"] {
   --bg: #f5edd6;
@@ -82,6 +86,8 @@
   --strong-color: #3b2e1e;
   --link: #7a3a10;
   --highlight: #d8c89a;
+  --prompt-accent: #b14a0a;
+  --assistant-accent: #1f6873;
 }
 
 /* ---------- Base ---------- */
@@ -600,11 +606,11 @@ body.sp-collapsed .bottombar { left: 28px; }
 .event.user { background: var(--user-bg); border-color: var(--user-border); }
 .event.assistant { background: var(--assistant-bg); border-color: var(--assistant-border); }
 .event.user.prompt {
-  border-left: 6px solid var(--success-fg);
+  border-left: 6px solid var(--prompt-accent);
   padding-left: 12px;
 }
 .event.user.prompt .event-label {
-  color: var(--success-fg);
+  color: var(--prompt-accent);
   font-weight: 700;
 }
 .event.user.tool-context {
@@ -619,11 +625,11 @@ body.sp-collapsed .bottombar { left: 28px; }
   letter-spacing: 0;
 }
 .event.assistant {
-  border-left: 6px solid var(--link);
+  border-left: 6px solid var(--assistant-accent);
   padding-left: 12px;
 }
 .event.assistant .event-label {
-  color: var(--link);
+  color: var(--assistant-accent);
   font-weight: 700;
 }
 .event-header {

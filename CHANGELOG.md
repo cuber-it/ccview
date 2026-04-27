@@ -10,8 +10,10 @@ Versioning follows [SemVer](https://semver.org/).
 ### Changed
 
 - Stronger visual separation in the timeline: real user prompts get a 6 px
-  green left bar, assistant events a 6 px blue bar, tool-context user
-  events stay muted. Header labels colored to match.
+  orange left bar, assistant events a 6 px cyan/teal bar (complementary
+  hues, distinguishable for color-blind users), tool-context user events
+  stay muted. Header labels colored to match. Per-theme tuning for
+  Dark / Light / Sepia.
 - Markdown rendering in `text` and `user_prompt` blocks now covers headings
   (`#`–`######`), unordered and ordered lists, blockquotes, links, horizontal
   rules, and strikethrough — on top of the existing fenced/inline code,
