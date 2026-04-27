@@ -16,6 +16,8 @@ Versioning follows [SemVer](https://semver.org/).
 - `srv/server.go: handleStream` split into a new `srv/sse.go` with `sseWriter`
   (SSE protocol) and helpers `replayHistory` / `streamLive`. handleStream now
   orchestrates only.
+- `srv/server.go: handleExport` split: `lookupStartedTime` and
+  `writeMarkdownExport` extracted; the handler now orchestrates only.
 
 ## [0.1.0] — 2026-04-24
 

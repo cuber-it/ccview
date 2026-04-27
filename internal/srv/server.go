@@ -261,43 +261,60 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	projectDir := s.projectDir
 	s.mu.Unlock()
 
-	var started time.Time
-	if s.projectsRoot != "" && projectDir != "" {
-		if list, err := session.List(s.projectsRoot, projectDir); err == nil {
-			for _, si := range list {
-				if si.ID == curID {
-					started = si.FirstEventTime
-					break
-				}
-			}
-		}
-	}
-
+	started := lookupStartedTime(s.projectsRoot, projectDir, curID)
 	target, err := resolveExportPath(body.Path, curID, projectDir, started)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	events := s.hub.History()
-	md := export.Markdown(export.Meta{
+	meta := export.Meta{
 		SessionID:   curID,
 		ProjectPath: decodeProjectDir(projectDir),
 		Started:     started,
 		Exported:    time.Now(),
-	}, events)
-	if err := os.WriteFile(target, []byte(md), 0o644); err != nil {
-		http.Error(w, "write: "+err.Error(), http.StatusInternalServerError)
+	}
+	events := s.hub.History()
+	n, err := writeMarkdownExport(target, meta, events)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, map[string]any{
 		"path":   target,
-		"bytes":  len(md),
+		"bytes":  n,
 		"events": len(events),
 	})
+}
+
+// lookupStartedTime returns the session's FirstEventTime for use in the
+// export filename and header. Returns zero when the session can't be found.
+func lookupStartedTime(projectsRoot, projectDir, sessionID string) time.Time {
+	if projectsRoot == "" || projectDir == "" {
+		return time.Time{}
+	}
+	list, err := session.List(projectsRoot, projectDir)
+	if err != nil {
+		return time.Time{}
+	}
+	for _, si := range list {
+		if si.ID == sessionID {
+			return si.FirstEventTime
+		}
+	}
+	return time.Time{}
+}
+
+// writeMarkdownExport renders events as Markdown, ensures the parent dir
+// exists, writes target, and returns the byte count.
+func writeMarkdownExport(target string, meta export.Meta, events []parse.Event) (int, error) {
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return 0, fmt.Errorf("mkdir: %w", err)
+	}
+	md := export.Markdown(meta, events)
+	if err := os.WriteFile(target, []byte(md), 0o644); err != nil {
+		return 0, fmt.Errorf("write: %w", err)
+	}
+	return len(md), nil
 }
 
 // ---- helpers ----
