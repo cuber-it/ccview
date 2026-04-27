@@ -39,6 +39,7 @@
       evt_error_badge: "Fehler",
       evt_thinking: "thinking",
       more: "mehr",
+      more_marker: "<weiter>",
       less: "weniger",
       event_user: "user",
       event_tool_result: "tool-result",
@@ -97,6 +98,7 @@
       evt_error_badge: "error",
       evt_thinking: "thinking",
       more: "more",
+      more_marker: "<more>",
       less: "less",
       event_user: "user",
       event_tool_result: "tool-result",
@@ -680,17 +682,21 @@
     const apply = () => {
       content.classList.remove("clamped");
       content.style.removeProperty("--clamp-lines");
+      let key;
       if (stage === 1) {
         content.classList.add("clamped");
         content.style.setProperty("--clamp-lines", cap);
-        btn.textContent = t("more");
+        key = "more";
       } else if (stage === 2) {
         content.classList.add("clamped");
         content.style.setProperty("--clamp-lines", STAGE2_CAP);
-        btn.textContent = "<MORE>";
+        key = "more_marker";
       } else {
-        btn.textContent = t("less");
+        key = "less";
       }
+      // data-i18n marks the button so applyI18n() picks it up on language switch
+      btn.dataset.i18n = key;
+      btn.textContent = t(key);
     };
     btn.onclick = () => {
       if (stage === 1) {
