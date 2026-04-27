@@ -7,6 +7,13 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Refactor
+
+- Frontend: split monolithic `internal/srv/static/index.html` (1945 lines) into
+  `index.html` (82 lines), `style.css` (781 lines), `app.js` (1080 lines).
+  No build step, served via the same `//go:embed static` tree. Test updated
+  to verify the `app.js` reference and fetch.
+
 ## [0.1.0] — 2026-04-24
 
 First usable release. Live viewer for Claude Code sessions with a browser UI,

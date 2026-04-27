@@ -32,8 +32,21 @@ func TestServer_IndexServed(t *testing.T) {
 	if !strings.Contains(string(body), "ccview") {
 		t.Error("index body missing 'ccview'")
 	}
-	if !strings.Contains(string(body), "EventSource") {
-		t.Error("index body missing EventSource client")
+	if !strings.Contains(string(body), "app.js") {
+		t.Error("index body missing app.js script reference")
+	}
+
+	jsRes, err := http.Get(ts.URL + "/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer jsRes.Body.Close()
+	if jsRes.StatusCode != 200 {
+		t.Fatalf("app.js status = %d", jsRes.StatusCode)
+	}
+	js, _ := io.ReadAll(jsRes.Body)
+	if !strings.Contains(string(js), "EventSource") {
+		t.Error("app.js missing EventSource client")
 	}
 }
 
