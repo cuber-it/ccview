@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ccview</title>
+<link rel="stylesheet" href="easymde.min.css">
+<link rel="stylesheet" href="fa-shim.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,6 +13,9 @@
   <div class="toolbar-left">
     <span class="brand">ccview</span>
     <span class="brand-stats" id="stats"></span>
+  </div>
+  <div class="toolbar-center">
+    <button class="notes-btn" id="notesToggle" title="Notizen zur aktuellen Session">📝 Notizen</button>
   </div>
   <div class="toolbar-right">
     <div class="theme-switch" id="langSwitch">
@@ -28,6 +33,7 @@
       <button data-action="save" data-i18n="menu_save">Speichern</button>
       <button data-action="save-as" data-i18n="menu_save_as">Speichern unter…</button>
       <div class="sep"></div>
+      <button data-action="settings" data-i18n="menu_settings">Einstellungen</button>
       <button data-action="about" data-i18n="menu_about">Über ccview</button>
     </div>
   </div>
@@ -60,6 +66,38 @@
     <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
   </div>
 </div>
+<div class="modal" id="settingsModal" hidden>
+  <div class="modal-backdrop" data-modal-close="1"></div>
+  <div class="modal-body">
+    <h2 data-i18n="settings_title">Einstellungen</h2>
+    <h3 class="settings-sub" data-i18n="settings_paths_title">Projekt-Pfade</h3>
+    <p class="settings-hint" data-i18n="settings_paths_hint">Verzeichnisse, in denen Claude-Code-Sessions liegen (eines pro Zeile):</p>
+    <textarea class="settings-paths" id="settingsPaths" rows="3" spellcheck="false"></textarea>
+    <button class="settings-paths-save" id="settingsPathsSave" data-i18n="settings_paths_save">Pfade übernehmen</button>
+    <p class="settings-hint" data-i18n="settings_proj_hint">Projekt-Gruppen in der Sidebar — Anzeigename, Reihenfolge, Sichtbarkeit:</p>
+    <div class="settings-projects" id="settingsProjects"></div>
+    <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
+  </div>
+</div>
+<div class="ctxmenu" id="sessionCtx" hidden>
+  <button data-act="fav">Favorit</button>
+  <button data-act="rename">Umbenennen</button>
+  <button data-act="save">Speichern</button>
+  <div class="ctxsep"></div>
+  <button data-act="copy">ID kopieren</button>
+</div>
+<div class="notes-floater" id="notesFloater" hidden>
+  <div class="notes-resize" id="notesResize" title="Breite ziehen"></div>
+  <div class="notes-head" id="notesHead">
+    <span class="notes-title" id="notesTitle">Notizen</span>
+    <div class="notes-tools">
+      <button id="notesSave" title="In Datei speichern (Strg+S)">💾</button>
+      <button id="notesPin" title="Rechts andocken">📌</button>
+      <button id="notesClose" title="Schließen">✕</button>
+    </div>
+  </div>
+  <textarea id="notesText" placeholder="Notizen zu dieser Session…"></textarea>
+</div>
 <aside class="sidepanel">
   <button class="sidepanel-toggle" id="panelToggle" data-i18n-title="sidepanel_toggle" title="Panel ein-/ausklappen">«</button>
   <div class="sidepanel-tabs" id="sidepanelTabs">
@@ -67,16 +105,22 @@
     <button data-tab="sessions" data-i18n="tab_sessions">Sessions</button>
   </div>
   <div id="tabPrompts">
-    <h2 data-i18n="tab_prompts">Prompts</h2>
+    <div class="panel-head">
+      <h2 data-i18n="tab_prompts">Prompts</h2>
+      <button class="sort-toggle" id="promptSort" title="Reihenfolge umkehren (neueste oben/unten)" aria-label="sort">↑↓</button>
+    </div>
     <input class="prompt-filter" id="promptFilter" data-i18n-placeholder="prompt_filter" placeholder="filtern…">
     <div id="promptList"><div class="sidepanel-empty" data-i18n="list_none_yet">noch keine</div></div>
   </div>
   <div id="tabSessions" style="display:none">
     <h2 data-i18n="tab_sessions">Sessions</h2>
+    <input class="prompt-filter" id="sessionFilter" placeholder="filtern…">
     <div id="sessionList"><div class="sidepanel-empty" data-i18n="list_loading">lade…</div></div>
   </div>
 </aside>
+<div class="sidebar-resize" id="sidebarResize" title="Sidebar ziehen"></div>
 <div class="container" id="events"></div>
+<script src="easymde.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

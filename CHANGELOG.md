@@ -7,6 +7,26 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Multiple project roots**: scan several Claude projects directories at
+  once. Manage the list in Settings → "Projekt-Pfade" (persisted to
+  `~/.config/ccview/roots.json`; `~` expanded, duplicates dropped). New
+  `--projects-root` flag and `CLAUDE_CONFIG_DIR` support.
+- **Settings dialog** (burger menu): curate sidebar project groups —
+  display name, order, and visibility (localStorage).
+- **Sidebar grouping**: an "Active" group (current / same-project / today)
+  on top, remaining sessions grouped by project, each collapsible.
+- **Per-session notes**: file-backed Markdown notepad with an EasyMDE editor
+  (toolbar, live preview, syntax highlighting); floats or pins to the right
+  with a draggable width.
+- **Session context menu** (mini-burger / right-click): favorite, rename
+  (persistent custom name shown instead of the ID), save, copy ID.
+- **Session-list filter** and **auto-refresh** of the session list.
+- **Reversible prompt index** and **resizable sidebar** width (both persisted).
+- **Dev mode**: `CCVIEW_DEV=<dir>` serves `static/` from disk (no-cache) for
+  live editing without a rebuild.
+
 ## [0.2.0] — 2026-04-27
 
 ### Changed

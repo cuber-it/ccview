@@ -22,12 +22,13 @@ var version = "dev"
 
 func main() {
 	var (
-		sess        string
-		port        int
-		bind        string
-		noBrowser   bool
-		verbose     bool
-		showVersion bool
+		sess         string
+		port         int
+		bind         string
+		noBrowser    bool
+		verbose      bool
+		showVersion  bool
+		projectsRoot string
 	)
 	flag.StringVar(&sess, "session", "", "session id, prefix, or 'latest'")
 	flag.StringVar(&sess, "s", "", "shorthand for --session")
@@ -37,26 +38,29 @@ func main() {
 	flag.BoolVar(&verbose, "verbose", false, "print status messages to stdout/stderr")
 	flag.BoolVar(&verbose, "v", false, "shorthand for --verbose")
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
+	flag.StringVar(&projectsRoot, "projects-root", "", "Claude projects dir (default: $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects)")
 	flag.Parse()
 
 	if showVersion {
 		fmt.Println("ccview", version)
 		return
 	}
-	if err := run(sess, port, bind, noBrowser, verbose); err != nil {
+	if err := run(sess, port, bind, noBrowser, verbose, projectsRoot); err != nil {
 		fmt.Fprintln(os.Stderr, "ccview:", err)
 		os.Exit(1)
 	}
 }
 
-func run(sessSpec string, port int, bind string, noBrowser, verbose bool) error {
+func run(sessSpec string, port int, bind string, noBrowser, verbose bool, projectsRoot string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	projectsRoot, err := session.ProjectsDir()
-	if err != nil {
-		return err
+	if projectsRoot == "" {
+		projectsRoot, err = session.ProjectsDir()
+		if err != nil {
+			return err
+		}
 	}
 	projectDir := session.ProjectDirFromCwd(cwd)
 

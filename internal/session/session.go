@@ -26,8 +26,13 @@ type Info struct {
 	LastEventTime  time.Time // zero if no timestamped event found in tail
 }
 
-// ProjectsDir returns the default Claude Code projects directory.
+// ProjectsDir returns the Claude Code projects directory.
+// CLAUDE_CONFIG_DIR relocates the whole ~/.claude tree (incl. projects/),
+// so honour it when set; otherwise fall back to ~/.claude/projects.
 func ProjectsDir() (string, error) {
+	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return filepath.Join(dir, "projects"), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -99,6 +104,32 @@ func ListAll(projectsRoot string) ([]Info, error) {
 	}
 	sortInfos(out)
 	return out, nil
+}
+
+// ListAllRoots scans every projects root in turn and returns the merged set
+// of sessions, deduplicated by ID (first root wins), sorted newest-first.
+// Unreadable roots are skipped rather than failing the whole scan.
+func ListAllRoots(roots []string) []Info {
+	var out []Info
+	seen := make(map[string]bool)
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		part, err := ListAll(root)
+		if err != nil {
+			continue
+		}
+		for _, si := range part {
+			if seen[si.ID] {
+				continue
+			}
+			seen[si.ID] = true
+			out = append(out, si)
+		}
+	}
+	sortInfos(out)
+	return out
 }
 
 func sortInfos(s []Info) {

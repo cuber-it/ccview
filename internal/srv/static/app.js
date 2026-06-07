@@ -9,6 +9,15 @@
       menu_save: "Speichern",
       menu_save_as: "Speichern unter…",
       menu_about: "Über ccview",
+      menu_settings: "Einstellungen",
+      settings_title: "Einstellungen",
+      settings_proj_hint: "Projekt-Gruppen in der Sidebar — Anzeigename, Reihenfolge, Sichtbarkeit:",
+      settings_visible: "sichtbar",
+      settings_no_proj: "noch keine Projekte erkannt",
+      settings_paths_title: "Projekt-Pfade",
+      settings_paths_hint: "Verzeichnisse, in denen Claude-Code-Sessions liegen (eines pro Zeile):",
+      settings_paths_save: "Pfade übernehmen",
+      settings_paths_saved: "Übernommen — lädt neu…",
       close: "Schließen",
       tab_prompts: "Prompts",
       tab_sessions: "Sessions",
@@ -68,6 +77,15 @@
       menu_save: "Save",
       menu_save_as: "Save As…",
       menu_about: "About ccview",
+      menu_settings: "Settings",
+      settings_title: "Settings",
+      settings_proj_hint: "Project groups in the sidebar — display name, order, visibility:",
+      settings_visible: "visible",
+      settings_no_proj: "no projects detected yet",
+      settings_paths_title: "Project paths",
+      settings_paths_hint: "Directories where Claude Code sessions live (one per line):",
+      settings_paths_save: "Apply paths",
+      settings_paths_saved: "Applied — reloading…",
       close: "Close",
       tab_prompts: "Prompts",
       tab_sessions: "Sessions",
@@ -211,12 +229,15 @@
     if (!menuItems.contains(e.target) && e.target !== menuToggle) openMenu(false);
   });
 
-  const exportSession = async (pathOverride) => {
+  const exportSession = async (pathOverride, sessionId) => {
     try {
+      const payload = {};
+      if (pathOverride) payload.path = pathOverride;
+      if (sessionId) payload.session = sessionId;
       const r = await fetch("/api/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pathOverride ? { path: pathOverride } : {}),
+        body: JSON.stringify(payload),
       });
       if (!r.ok) throw new Error(await r.text() || r.status);
       const data = await r.json();
@@ -244,6 +265,68 @@
     if (e.target.dataset.modalClose) closeAbout();
   });
 
+  // ---------- settings ----------
+  const settingsModal = document.getElementById("settingsModal");
+  const settingsProjects = document.getElementById("settingsProjects");
+  const settingsPaths = document.getElementById("settingsPaths");
+  const renderSettingsProjects = () => {
+    const cfg = loadProjCfg();
+    const keys = new Set([...knownProjects.keys(), ...Object.keys(cfg)]);
+    const rows = [...keys].map(k => ({
+      key: k,
+      label: (cfg[k] && cfg[k].label) || knownProjects.get(k) || k,
+      hidden: !!(cfg[k] && cfg[k].hidden),
+      order: cfg[k] && cfg[k].order != null ? cfg[k].order : 1e9,
+    })).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+    settingsProjects.innerHTML = "";
+    if (!rows.length) { settingsProjects.innerHTML = '<div class="sidepanel-empty">' + t("settings_no_proj") + "</div>"; return; }
+    const persistOrder = () => {
+      const c = loadProjCfg();
+      [...settingsProjects.querySelectorAll(".settings-proj-row")].forEach((r, i) => {
+        const key = r.dataset.key; c[key] = c[key] || {}; c[key].order = i;
+      });
+      saveProjCfg(c);
+      if (typeof loadSessions === "function") loadSessions();
+    };
+    rows.forEach((row, idx) => {
+      const el = document.createElement("div");
+      el.className = "settings-proj-row"; el.dataset.key = row.key;
+      const up = document.createElement("button"); up.className = "settings-ord"; up.textContent = "▲"; up.disabled = idx === 0;
+      const down = document.createElement("button"); down.className = "settings-ord"; down.textContent = "▼"; down.disabled = idx === rows.length - 1;
+      const name = document.createElement("input"); name.type = "text"; name.className = "settings-proj-name"; name.value = row.label;
+      const vis = document.createElement("label"); vis.className = "settings-proj-vis";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !row.hidden;
+      vis.append(cb, document.createTextNode(" " + t("settings_visible")));
+      const persistRow = () => {
+        const c = loadProjCfg(); c[row.key] = c[row.key] || {};
+        c[row.key].label = name.value.trim() || knownProjects.get(row.key) || row.key;
+        c[row.key].hidden = !cb.checked;
+        saveProjCfg(c);
+        if (typeof loadSessions === "function") loadSessions();
+      };
+      name.addEventListener("change", persistRow);
+      cb.addEventListener("change", persistRow);
+      up.addEventListener("click", () => { if (el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling); persistOrder(); renderSettingsProjects(); });
+      down.addEventListener("click", () => { if (el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el); persistOrder(); renderSettingsProjects(); });
+      el.append(up, down, name, vis);
+      settingsProjects.appendChild(el);
+    });
+  };
+  const loadRootsCfg = async () => {
+    try { const r = await fetch("/api/roots"); if (r.ok) { const d = await r.json(); settingsPaths.value = (d.roots || []).join("\n"); } } catch { /* ignore */ }
+  };
+  const saveRootsCfg = async (btn) => {
+    const roots = settingsPaths.value.split("\n").map(x => x.trim()).filter(Boolean);
+    try {
+      const r = await fetch("/api/roots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roots }) });
+      if (r.ok) { btn.textContent = t("settings_paths_saved"); setTimeout(() => { btn.textContent = t("settings_paths_save"); if (typeof loadSessions === "function") loadSessions(); }, 900); }
+    } catch { /* ignore */ }
+  };
+  const openSettings = () => { renderSettingsProjects(); loadRootsCfg(); settingsModal.hidden = false; };
+  const closeSettings = () => { settingsModal.hidden = true; };
+  settingsModal.addEventListener("click", (e) => { if (e.target.dataset.modalClose) closeSettings(); });
+  document.getElementById("settingsPathsSave").addEventListener("click", (e) => saveRootsCfg(e.target));
+
   menuItems.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
@@ -254,6 +337,8 @@
       const p = prompt(t("save_as_prompt"), "");
       if (p === null) return;
       exportSession(p.trim() || null);
+    } else if (btn.dataset.action === "settings") {
+      openSettings();
     } else if (btn.dataset.action === "about") {
       openAbout();
     }
@@ -420,6 +505,7 @@
       });
       if (!r.ok) throw new Error(await r.text() || r.status);
       localStorage.setItem("ccview.lastSession", fullId);
+      document.dispatchEvent(new CustomEvent("ccview:session", { detail: fullId }));
       setTimeout(loadSessions, 150);
     } catch (err) {
       setStatus(t("switch_error", { err }), "err");
@@ -450,6 +536,82 @@
     } catch { /* ignore */ }
   };
 
+  const groupCollapsed = (key) => localStorage.getItem("ccview-grp-" + key) === "1";
+  const knownProjects = new Map();
+  const loadProjCfg = () => { try { return JSON.parse(localStorage.getItem("ccview-projects") || "{}"); } catch { return {}; } };
+  const saveProjCfg = (cfg) => localStorage.setItem("ccview-projects", JSON.stringify(cfg));
+  const groupHeader = (label, count, key) => {
+    const h = document.createElement("div");
+    h.className = "session-group-head" + (key ? " collapsible" : "");
+    if (key) h.dataset.grpKey = key;
+    if (key && groupCollapsed(key)) h.classList.add("collapsed");
+    h.innerHTML = (key ? '<span class="grp-caret">▾</span>' : "") +
+      '<span class="grp-label"></span><span class="grp-count"></span>';
+    h.querySelector(".grp-label").textContent = label;
+    h.querySelector(".grp-count").textContent = count;
+    return h;
+  };
+  const renderSessionGroups = (list, buildItem) => {
+    const isActive = (s) => s.current || s.same_project || isToday(s.last_event) || isToday(s.first_event);
+    const active = list.filter(isActive);
+    const rest = list.filter(s => !isActive(s));
+    const addGroup = (label, items, key) => {
+      const head = groupHeader(label, items.length, key);
+      sessionList.appendChild(head);
+      const body = document.createElement("div");
+      body.className = "session-group-body";
+      if (key && groupCollapsed(key)) body.style.display = "none";
+      items.forEach(s => body.appendChild(buildItem(s)));
+      sessionList.appendChild(body);
+      if (key) head.addEventListener("click", () => {
+        const willOpen = body.style.display === "none";
+        body.style.display = willOpen ? "" : "none";
+        localStorage.setItem("ccview-grp-" + key, willOpen ? "0" : "1");
+        head.classList.toggle("collapsed", !willOpen);
+      });
+    };
+    if (active.length) addGroup(lang === "en" ? "Active" : "Aktiv", active, null);
+    const cfg = loadProjCfg();
+    const groups = new Map();
+    rest.forEach(s => {
+      const k = s.project || "—";
+      const defLabel = s.project_label || s.project || "—";
+      knownProjects.set(k, defLabel);
+      if (!groups.has(k)) groups.set(k, { label: defLabel, items: [] });
+      groups.get(k).items.push(s);
+    });
+    const ordered = [...groups.entries()].sort((a, b) => {
+      const oa = cfg[a[0]] && cfg[a[0]].order != null ? cfg[a[0]].order : 1e9;
+      const ob = cfg[b[0]] && cfg[b[0]].order != null ? cfg[b[0]].order : 1e9;
+      return oa - ob;
+    });
+    ordered.forEach(([k, g]) => {
+      if (cfg[k] && cfg[k].hidden) return;
+      addGroup((cfg[k] && cfg[k].label) || g.label, g.items, k);
+    });
+  };
+
+  const sessionFilter = document.getElementById("sessionFilter");
+  const applySessionFilter = () => {
+    const lo = (sessionFilter.value || "").trim().toLowerCase();
+    sessionList.querySelectorAll(".session-item").forEach(el => {
+      el.hidden = lo && !el.textContent.toLowerCase().includes(lo);
+    });
+    sessionList.querySelectorAll(".session-group-body").forEach(body => {
+      const head = body.previousElementSibling;
+      const key = head && head.dataset ? head.dataset.grpKey : null;
+      if (!lo) {
+        body.style.display = (key && groupCollapsed(key)) ? "none" : "";
+        if (head) head.style.display = "";
+      } else {
+        const any = [...body.querySelectorAll(".session-item")].some(el => !el.hidden);
+        body.style.display = any ? "" : "none";
+        if (head) head.style.display = any ? "" : "none";
+      }
+    });
+  };
+  sessionFilter.addEventListener("input", applySessionFilter);
+
   const loadSessions = async () => {
     try {
       const res = await fetch("/api/sessions");
@@ -462,7 +624,7 @@
       }
       sessionList.innerHTML = "";
       const mainID = getMain();
-      list.forEach(s => {
+      const buildSessionItem = (s) => {
         const item = document.createElement("div");
         let cls = "session-item";
         if (s.current) cls += " current";
@@ -480,7 +642,10 @@
 
         const id = document.createElement("div");
         id.className = "session-id";
-        const left = document.createElement("span"); left.textContent = s.short_id;
+        const left = document.createElement("span");
+        const customName = nameFor(s.id);
+        left.textContent = customName || s.short_id;
+        if (customName) left.classList.add("session-named");
         const right = document.createElement("span");
         right.textContent = s.current ? t("session_current_badge") : formatRelative(s.first_event || s.last_event);
         if (s.current) right.classList.add("current-badge");
@@ -518,9 +683,25 @@
         });
         item.appendChild(pin);
 
-        sessionList.appendChild(item);
-      });
+        const burger = document.createElement("button");
+        burger.className = "session-burger";
+        burger.textContent = "☰";
+        burger.title = "Aktionen";
+        burger.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!ctxMenu.hidden && ctxSession && ctxSession.id === s.id) { closeCtx(); return; }
+          ctxSession = s;
+          const rb = burger.getBoundingClientRect();
+          ctxMenu.style.left = Math.max(8, Math.min(rb.right - 168, window.innerWidth - 180)) + "px";
+          ctxMenu.style.top = Math.min(rb.bottom + 2, window.innerHeight - 170) + "px";
+          ctxMenu.hidden = false;
+        });
+        item.appendChild(burger);
+        return item;
+      };
+      renderSessionGroups(list, buildSessionItem);
       renderFavs();
+      applySessionFilter();
     } catch (err) {
       sessionList.innerHTML = '<div class="sidepanel-empty">' + t("list_error", { err }) + '</div>';
     }
@@ -530,6 +711,53 @@
     const item = e.target.closest(".session-item");
     if (!item || !item.dataset.fullId) return;
     switchSession(item.dataset.fullId);
+  });
+
+  // ---------- session context menu (rename / copy id / pin / favorite) ----------
+  const ctxMenu = document.getElementById("sessionCtx");
+  let ctxSession = null;
+  const loadNames = () => { try { return JSON.parse(localStorage.getItem("ccview-names") || "{}"); } catch { return {}; } };
+  const nameFor = (id) => loadNames()[id] || null;
+  const saveName = (id, name) => {
+    const m = loadNames();
+    if (name) m[id] = name; else delete m[id];
+    localStorage.setItem("ccview-names", JSON.stringify(m));
+  };
+  const closeCtx = () => { ctxMenu.hidden = true; ctxSession = null; };
+  sessionList.addEventListener("contextmenu", (e) => {
+    const item = e.target.closest(".session-item");
+    if (!item || !item.dataset.fullId) return;
+    e.preventDefault();
+    ctxSession = (lastSessionsData || []).find(s => s.id === item.dataset.fullId) || { id: item.dataset.fullId };
+    ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 180) + "px";
+    ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 170) + "px";
+    ctxMenu.hidden = false;
+  });
+  ctxMenu.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b || !ctxSession) return;
+    const s = ctxSession;
+    if (b.dataset.act === "rename") {
+      const name = prompt("Name für diese Session (leer = zurücksetzen):", nameFor(s.id) || "");
+      if (name !== null) { saveName(s.id, name.trim()); loadSessions(); }
+    } else if (b.dataset.act === "copy") {
+      navigator.clipboard.writeText(s.id);
+    } else if (b.dataset.act === "fav") {
+      toggleFav(s);
+    } else if (b.dataset.act === "save") {
+      const p = prompt(t("save_as_prompt"), "");
+      if (p === null) return;
+      exportSession(p.trim() || null, s.id);
+    }
+    closeCtx();
+  });
+  document.addEventListener("click", (e) => { if (!ctxMenu.hidden && !ctxMenu.contains(e.target)) closeCtx(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !ctxMenu.hidden) closeCtx(); });
+  // close the menu when focus moves to another session
+  sessionList.addEventListener("mouseover", (e) => {
+    if (ctxMenu.hidden) return;
+    const item = e.target.closest(".session-item");
+    if (item && (!ctxSession || item.dataset.fullId !== ctxSession.id)) closeCtx();
   });
 
   const activateTab = (name) => {
@@ -550,6 +778,13 @@
   });
   activateTab(localStorage.getItem("ccview.tab") || "prompts");
   restoreLastSession();
+
+  // ---------- auto-refresh session list ----------
+  setInterval(() => {
+    if (tabSessions.style.display !== "none" && document.visibilityState === "visible" && ctxMenu.hidden) {
+      loadSessions();
+    }
+  }, 6000);
 
   // ---------- DOM refs ----------
   const eventsEl   = document.getElementById("events");
@@ -1127,6 +1362,22 @@
     });
   });
 
+  // ---------- prompt sort (toggle ascending / descending) ----------
+  const promptSortBtn = document.getElementById("promptSort");
+  const applyPromptSort = () => {
+    const rev = localStorage.getItem("ccview-prompt-rev") === "1";
+    promptList.classList.toggle("reversed", rev);
+    if (promptSortBtn) promptSortBtn.classList.toggle("active", rev);
+  };
+  if (promptSortBtn) {
+    promptSortBtn.addEventListener("click", () => {
+      const rev = localStorage.getItem("ccview-prompt-rev") === "1";
+      localStorage.setItem("ccview-prompt-rev", rev ? "0" : "1");
+      applyPromptSort();
+    });
+  }
+  applyPromptSort();
+
   // ---------- keyboard nav ----------
   let lastKey = null;
   const jumpPrompt = (dir) => {
@@ -1213,4 +1464,109 @@
     es.onerror = () => setStatus(t("status_disconnected"), "err");
   };
   connect();
+})();
+
+// ---------- sidebar resize ----------
+(() => {
+  const handle = document.getElementById("sidebarResize");
+  if (!handle) return;
+  const root = document.documentElement;
+  const saved = localStorage.getItem("ccview-sidebar-w");
+  if (saved) root.style.setProperty("--sidebar-w", saved + "px");
+  let dragging = false;
+  handle.addEventListener("mousedown", (e) => {
+    dragging = true; e.preventDefault(); document.body.style.userSelect = "none";
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    root.style.setProperty("--sidebar-w", Math.max(150, Math.min(560, e.clientX)) + "px");
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false; document.body.style.userSelect = "";
+    const w = parseInt(getComputedStyle(root).getPropertyValue("--sidebar-w"), 10);
+    if (w) localStorage.setItem("ccview-sidebar-w", w);
+  });
+})();
+
+// ---------- notes floater ----------
+(() => {
+  const btn = document.getElementById("notesToggle");
+  const fl = document.getElementById("notesFloater");
+  const ta = document.getElementById("notesText");
+  const titleEl = document.getElementById("notesTitle");
+  if (!btn || !fl || !ta) return;
+  const easymde = new EasyMDE({
+    element: ta,
+    autoDownloadFontAwesome: false,
+    spellChecker: false,
+    status: false,
+    placeholder: "Notizen zu dieser Session… (Markdown)",
+    toolbar: ["bold", "italic", "heading", "|", "code", "quote", "unordered-list", "ordered-list",
+      "|", "link", "table", "|", "preview", "side-by-side", "fullscreen", "|", "undo", "redo"],
+  });
+  let sessionId = null;
+  const shortTitle = () => sessionId ? "Notizen · " + sessionId.slice(0, 8) : "Notizen";
+  const load = async () => {
+    sessionId = localStorage.getItem("ccview.lastSession");
+    titleEl.textContent = shortTitle();
+    if (!sessionId) { easymde.value(""); return; }
+    try { const r = await fetch("/api/notes?session=" + encodeURIComponent(sessionId)); easymde.value((await r.json()).content || ""); } catch { /* ignore */ }
+  };
+  const save = async () => {
+    if (!sessionId) return;
+    try {
+      await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session: sessionId, content: easymde.value() }) });
+      titleEl.textContent = "Notizen · gespeichert ✓";
+      setTimeout(() => { titleEl.textContent = shortTitle(); }, 1200);
+    } catch { /* ignore */ }
+  };
+  const open = (show) => {
+    fl.hidden = !show; btn.classList.toggle("active", show);
+    if (show) { load(); setTimeout(() => easymde.codemirror.refresh(), 30); }
+  };
+  btn.addEventListener("click", () => open(fl.hidden));
+  document.getElementById("notesClose").addEventListener("click", () => open(false));
+  document.getElementById("notesSave").addEventListener("click", save);
+  const savedNotesW = localStorage.getItem("ccview-notes-w");
+  if (savedNotesW) document.documentElement.style.setProperty("--notes-w", savedNotesW);
+  const resizeEl = document.getElementById("notesResize");
+  if (resizeEl) {
+    let rzActive = false;
+    resizeEl.addEventListener("mousedown", (e) => { rzActive = true; e.preventDefault(); document.body.style.userSelect = "none"; });
+    document.addEventListener("mousemove", (e) => {
+      if (!rzActive) return;
+      const w = Math.max(260, Math.min(window.innerWidth - 120, window.innerWidth - e.clientX));
+      document.documentElement.style.setProperty("--notes-w", w + "px");
+    });
+    document.addEventListener("mouseup", () => {
+      if (!rzActive) return; rzActive = false; document.body.style.userSelect = "";
+      localStorage.setItem("ccview-notes-w", getComputedStyle(document.documentElement).getPropertyValue("--notes-w").trim());
+      easymde.codemirror.refresh();
+    });
+  }
+  document.getElementById("notesPin").addEventListener("click", () => {
+    const pinned = fl.classList.toggle("pinned");
+    document.body.classList.toggle("notes-pinned", pinned);
+    fl.style.left = ""; fl.style.top = ""; fl.style.right = "";
+    localStorage.setItem("ccview-notes-pinned", pinned ? "1" : "0");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!fl.hidden && (e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault(); save(); }
+  });
+  document.addEventListener("ccview:session", () => { if (!fl.hidden) load(); });
+  if (localStorage.getItem("ccview-notes-pinned") === "1") { fl.classList.add("pinned"); document.body.classList.add("notes-pinned"); }
+  const head = document.getElementById("notesHead");
+  let drag = null;
+  head.addEventListener("mousedown", (e) => {
+    if (fl.classList.contains("pinned") || e.target.closest("button")) return;
+    drag = { x: e.clientX, y: e.clientY, l: fl.offsetLeft, t: fl.offsetTop }; e.preventDefault();
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    fl.style.left = (drag.l + e.clientX - drag.x) + "px";
+    fl.style.top = (drag.t + e.clientY - drag.y) + "px"; fl.style.right = "auto";
+  });
+  document.addEventListener("mouseup", () => { drag = null; });
 })();

@@ -12,6 +12,10 @@ A single Go binary (~5 MB). No runtime, no dependencies.
 
 - **Live tail** of any session in the browser, via SSE
 - **Session browser** across all projects, runtime switching with a click
+- **Multiple project roots** scanned together, managed in the Settings dialog
+- **Grouped sidebar** (Active + per-project, collapsible) with resizable width,
+  filter, auto-refresh, and per-session rename
+- **Per-session notes**: file-backed Markdown notepad with an EasyMDE editor
 - **Prompt index** in the sidepanel: numbered anchors, filter, hover popup
 - **Favorites** (up to 5) with light-green highlight on new events
 - **Main session** (exclusive) auto-loads on startup regardless of cwd

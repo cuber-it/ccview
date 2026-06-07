@@ -38,6 +38,7 @@ type Server struct {
 	mux          *http.ServeMux
 	hub          *Hub
 	projectsRoot string
+	roots        []string
 	projectDir   string
 	version      string
 	verbose      bool
@@ -48,26 +49,57 @@ type Server struct {
 	rootCtx    context.Context
 }
 
+// noCache disables browser caching — used in CCVIEW_DEV mode so a reload
+// always fetches the latest static file.
+func noCache(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		h.ServeHTTP(w, r)
+	})
+}
+
 func New(cfg Config) *Server {
+	roots := loadRootsConfig()
+	if len(roots) == 0 && cfg.ProjectsRoot != "" {
+		roots = []string{cfg.ProjectsRoot}
+	}
 	s := &Server{
 		mux:          http.NewServeMux(),
 		hub:          newHub(),
 		projectsRoot: cfg.ProjectsRoot,
+		roots:        roots,
 		projectDir:   cfg.ProjectDir,
 		version:      cfg.Version,
 		verbose:      cfg.Verbose,
 	}
-	sub, err := fs.Sub(staticFS, "static")
-	if err != nil {
-		panic(err)
+	// Frontend: embedded by default. CCVIEW_DEV=<dir> serves static from disk
+	// for live editing — change a file, reload the browser, no rebuild needed.
+	var staticHandler http.Handler
+	if dir := os.Getenv("CCVIEW_DEV"); dir != "" {
+		staticHandler = noCache(http.FileServer(http.Dir(dir)))
+	} else {
+		sub, err := fs.Sub(staticFS, "static")
+		if err != nil {
+			panic(err)
+		}
+		staticHandler = http.FileServer(http.FS(sub))
 	}
-	s.mux.Handle("/", http.FileServer(http.FS(sub)))
+	s.mux.Handle("/", staticHandler)
 	s.mux.HandleFunc("/stream", s.handleStream)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/switch", s.handleSwitch)
 	s.mux.HandleFunc("/api/export", s.handleExport)
 	s.mux.HandleFunc("/api/version", s.handleVersion)
+	s.mux.HandleFunc("/api/notes", s.handleNotes)
+	s.mux.HandleFunc("/api/roots", s.handleRoots)
 	return s
+}
+
+// currentRoots returns a copy of the configured projects roots (thread-safe).
+func (s *Server) currentRoots() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.roots...)
 }
 
 func (s *Server) Hub() *Hub { return s.hub }
@@ -177,15 +209,12 @@ type sessionDTO struct {
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
-	if s.projectsRoot == "" {
+	roots := s.currentRoots()
+	if len(roots) == 0 {
 		writeJSON(w, []sessionDTO{})
 		return
 	}
-	sessions, err := session.ListAll(s.projectsRoot)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	sessions := session.ListAllRoots(roots)
 	s.mu.Lock()
 	curID := s.currentID
 	s.mu.Unlock()
@@ -225,15 +254,12 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if s.projectsRoot == "" {
+	roots := s.currentRoots()
+	if len(roots) == 0 {
 		http.Error(w, "no projects configured", http.StatusBadRequest)
 		return
 	}
-	sessions, err := session.ListAll(s.projectsRoot)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	sessions := session.ListAllRoots(roots)
 	info, err := session.Resolve(sessions, body.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -252,7 +278,8 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Path string `json:"path"`
+		Path    string `json:"path"`
+		Session string `json:"session"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
@@ -261,19 +288,40 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	projectDir := s.projectDir
 	s.mu.Unlock()
 
-	started := lookupStartedTime(s.projectsRoot, projectDir, curID)
-	target, err := resolveExportPath(body.Path, curID, projectDir, started)
+	sessID := curID
+	var events []parse.Event
+	var started time.Time
+	if body.Session != "" && body.Session != curID {
+		// Export an arbitrary session: locate its file across all roots and parse it.
+		info, ok := s.findSession(body.Session)
+		if !ok {
+			http.Error(w, "session not found: "+body.Session, http.StatusBadRequest)
+			return
+		}
+		evs, perr := parseSessionFile(info.Path)
+		if perr != nil {
+			http.Error(w, perr.Error(), http.StatusInternalServerError)
+			return
+		}
+		sessID, projectDir, events, started = body.Session, info.Project, evs, info.FirstEventTime
+	} else {
+		events = s.hub.History()
+		if info, ok := s.findSession(sessID); ok {
+			started = info.FirstEventTime
+		}
+	}
+
+	target, err := resolveExportPath(body.Path, sessID, projectDir, started)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	meta := export.Meta{
-		SessionID:   curID,
+		SessionID:   sessID,
 		ProjectPath: decodeProjectDir(projectDir),
 		Started:     started,
 		Exported:    time.Now(),
 	}
-	events := s.hub.History()
 	n, err := writeMarkdownExport(target, meta, events)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -286,22 +334,176 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// lookupStartedTime returns the session's FirstEventTime for use in the
-// export filename and header. Returns zero when the session can't be found.
-func lookupStartedTime(projectsRoot, projectDir, sessionID string) time.Time {
-	if projectsRoot == "" || projectDir == "" {
-		return time.Time{}
+// notesPath returns the on-disk location of a session's note file.
+func notesPath(sessionID string) string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, "Workspace", "claude-code", "notes", sessionID+".md")
+}
+
+// handleNotes serves GET (load) and POST (save) of a per-session note file.
+func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request) {
+	sess := r.URL.Query().Get("session")
+	if sess == "" || strings.ContainsAny(sess, "/\\") || strings.Contains(sess, "..") {
+		http.Error(w, "invalid session", http.StatusBadRequest)
+		return
 	}
-	list, err := session.List(projectsRoot, projectDir)
+	path := notesPath(sess)
+	switch r.Method {
+	case http.MethodGet:
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				writeJSON(w, map[string]any{"content": ""})
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]any{"content": string(data)})
+	case http.MethodPost:
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := os.WriteFile(path, []byte(body.Content), 0o644); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "path": path})
+	default:
+		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
+	}
+}
+
+// parseSessionFile reads a full session JSONL and parses it into events,
+// skipping blank or malformed lines so one bad line never aborts the export.
+func parseSessionFile(path string) ([]parse.Event, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return time.Time{}
+		return nil, err
 	}
-	for _, si := range list {
-		if si.ID == sessionID {
-			return si.FirstEventTime
+	var out []parse.Event
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if ev, perr := parse.Parse([]byte(line)); perr == nil {
+			out = append(out, ev)
 		}
 	}
-	return time.Time{}
+	return out, nil
+}
+
+// findSession locates a session by ID across all configured roots.
+func (s *Server) findSession(sessionID string) (session.Info, bool) {
+	for _, si := range session.ListAllRoots(s.currentRoots()) {
+		if si.ID == sessionID {
+			return si, true
+		}
+	}
+	return session.Info{}, false
+}
+
+// handleRoots returns (GET) or replaces (POST) the list of projects roots.
+// On POST the new list is persisted to disk *before* the in-memory state is
+// updated, so a failed write leaves runtime and config consistent.
+func (s *Server) handleRoots(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, map[string]any{"roots": s.currentRoots()})
+	case http.MethodPost:
+		var body struct {
+			Roots []string `json:"roots"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		clean := cleanRoots(body.Roots)
+		if err := saveRootsConfig(clean); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.mu.Lock()
+		s.roots = clean
+		s.mu.Unlock()
+		writeJSON(w, map[string]any{"roots": clean})
+	default:
+		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
+	}
+}
+
+// cleanRoots trims, expands a leading ~, drops blanks, and deduplicates.
+func cleanRoots(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]bool)
+	home, _ := os.UserHomeDir()
+	for _, root := range in {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		if home != "" && (root == "~" || strings.HasPrefix(root, "~/")) {
+			root = filepath.Join(home, strings.TrimPrefix(root[1:], "/"))
+		}
+		if seen[root] {
+			continue
+		}
+		seen[root] = true
+		out = append(out, root)
+	}
+	return out
+}
+
+// rootsConfigPath is where the projects-root list is persisted.
+func rootsConfigPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "ccview", "roots.json"), nil
+}
+
+// loadRootsConfig reads the persisted roots list; nil if absent/unreadable.
+func loadRootsConfig() []string {
+	path, err := rootsConfigPath()
+	if err != nil {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var cfg struct {
+		Roots []string `json:"roots"`
+	}
+	if json.Unmarshal(data, &cfg) != nil {
+		return nil
+	}
+	return cfg.Roots
+}
+
+// saveRootsConfig persists the roots list, creating the config dir as needed.
+func saveRootsConfig(roots []string) error {
+	path, err := rootsConfigPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(map[string][]string{"roots": roots}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
 }
 
 // writeMarkdownExport renders events as Markdown, ensures the parent dir

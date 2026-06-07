@@ -1,0 +1,25 @@
+/* Minimal FontAwesome shim for the EasyMDE toolbar — unicode glyphs, no webfont. */
+.editor-toolbar a.fa, .editor-toolbar button.fa, .editor-toolbar i.fa {
+  font-family: inherit !important; font-style: normal; font-weight: normal;
+}
+.editor-toolbar .fa::before { font-style: normal; font-weight: normal; }
+.fa-bold::before { content: "B"; font-weight: 700; }
+.fa-italic::before { content: "I"; font-style: italic; }
+.fa-strikethrough::before { content: "S"; text-decoration: line-through; }
+.fa-header::before { content: "H"; }
+.fa-code::before { content: "</>"; font-size: .82em; }
+.fa-quote-left::before { content: "❝"; }
+.fa-list-ul::before { content: "•"; }
+.fa-list-ol::before { content: "1."; font-size: .82em; }
+.fa-link::before { content: "🔗"; }
+.fa-image::before { content: "🖼"; }
+.fa-table::before { content: "▦"; }
+.fa-minus::before { content: "—"; }
+.fa-eye::before { content: "◉"; }
+.fa-columns::before { content: "◫"; }
+.fa-arrows-alt::before { content: "⛶"; }
+.fa-question-circle::before { content: "?"; }
+.fa-undo::before { content: "↶"; }
+.fa-repeat::before { content: "↷"; }
+.fa-eraser::before { content: "⌫"; }
+.fa-check-square-o::before { content: "☑"; }
