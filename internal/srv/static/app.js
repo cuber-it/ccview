@@ -552,9 +552,10 @@
     return h;
   };
   const renderSessionGroups = (list, buildItem) => {
-    const isActive = (s) => s.current || s.same_project || isToday(s.last_event) || isToday(s.first_event);
+    const isActive = (s) => s.current || isToday(s.last_event) || isToday(s.first_event);
     const active = list.filter(isActive);
     const rest = list.filter(s => !isActive(s));
+    list.forEach(s => knownProjects.set(s.project || "—", s.project_label || s.project || "—"));
     const addGroup = (label, items, key) => {
       const head = groupHeader(label, items.length, key);
       sessionList.appendChild(head);
@@ -611,6 +612,20 @@
     });
   };
   sessionFilter.addEventListener("input", applySessionFilter);
+
+  const collapseAllBtn = document.getElementById("sessionCollapseAll");
+  if (collapseAllBtn) collapseAllBtn.addEventListener("click", () => {
+    const heads = [...sessionList.querySelectorAll(".session-group-head.collapsible")];
+    const anyOpen = heads.some(h => !h.classList.contains("collapsed"));
+    heads.forEach(h => {
+      const body = h.nextElementSibling;
+      if (!body) return;
+      body.style.display = anyOpen ? "none" : "";
+      h.classList.toggle("collapsed", anyOpen);
+      if (h.dataset.grpKey) localStorage.setItem("ccview-grp-" + h.dataset.grpKey, anyOpen ? "1" : "0");
+    });
+    collapseAllBtn.textContent = anyOpen ? "⊞" : "⊟";
+  });
 
   const loadSessions = async () => {
     try {

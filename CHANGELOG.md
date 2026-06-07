@@ -26,6 +26,16 @@ Versioning follows [SemVer](https://semver.org/).
 - **Reversible prompt index** and **resizable sidebar** width (both persisted).
 - **Dev mode**: `CCVIEW_DEV=<dir>` serves `static/` from disk (no-cache) for
   live editing without a rebuild.
+- **Collapse/expand all** sidebar groups with one button in the Sessions tab.
+
+### Changed
+
+- The sidebar "Active" group no longer counts `same_project` (same cwd as the
+  server process) as active — only the currently-open session and today's
+  sessions. Running ccview as a service from a fixed directory no longer
+  floods "Active"; those sessions form a normal collapsible group instead.
+- Settings lists every detected project (previously only those with inactive
+  sessions), so any group can be curated.
 
 ## [0.2.0] — 2026-04-27
 
