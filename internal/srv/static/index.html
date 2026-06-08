@@ -101,9 +101,14 @@
   <div class="modal-backdrop" data-modal-close="1"></div>
   <div class="modal-body query-modal-body">
     <h2>Datenbank-Abfrage <small>read-only SELECT</small></h2>
-    <textarea class="settings-paths" id="queryInput" rows="3" spellcheck="false" placeholder="SELECT * FROM session_meta"></textarea>
-    <button class="settings-paths-save" id="queryRun">Ausführen</button>
-    <div class="query-result" id="queryResult"></div>
+    <div class="query-layout">
+      <div class="query-main">
+        <textarea class="settings-paths" id="queryInput" rows="3" spellcheck="false" placeholder="SELECT * FROM session_meta"></textarea>
+        <button class="settings-paths-save" id="queryRun">Ausführen</button>
+        <div class="query-result" id="queryResult"></div>
+      </div>
+      <div class="query-schema" id="querySchema"></div>
+    </div>
     <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
   </div>
 </div>

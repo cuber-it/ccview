@@ -109,6 +109,7 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/search", s.handleSearch)
 	s.mux.HandleFunc("/api/delete", s.handleDelete)
 	s.mux.HandleFunc("/api/query", s.handleQuery)
+	s.mux.HandleFunc("/api/schema", s.handleSchema)
 	return s
 }
 
@@ -528,6 +529,16 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "trash": dest})
+}
+
+// handleSchema returns the metadata DB's tables and columns for the query UI.
+func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
+	schema, err := s.store.Schema()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, schema)
 }
 
 // handleQuery runs a single read-only SELECT against the metadata DB.

@@ -228,6 +228,46 @@ func (s *Store) DeleteMeta(sessionID string) error {
 	return tx.Commit()
 }
 
+// Schema returns the table → column-names map of the metadata DB, for a
+// quick reference in the query UI.
+func (s *Store) Schema() (map[string][]string, error) {
+	tr, err := s.db.Query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	var tables []string
+	for tr.Next() {
+		var n string
+		if err := tr.Scan(&n); err != nil {
+			tr.Close()
+			return nil, err
+		}
+		tables = append(tables, n)
+	}
+	tr.Close()
+	out := make(map[string][]string)
+	for _, t := range tables {
+		cr, err := s.db.Query("PRAGMA table_info(" + t + ")")
+		if err != nil {
+			return nil, err
+		}
+		var cols []string
+		for cr.Next() {
+			var cid, notnull, pk int
+			var name, ctype string
+			var dflt sql.NullString
+			if err := cr.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+				cr.Close()
+				return nil, err
+			}
+			cols = append(cols, name)
+		}
+		cr.Close()
+		out[t] = cols
+	}
+	return out, nil
+}
+
 // Query runs a (caller-validated, read-only) SQL statement and returns the
 // column names and rows rendered as strings. NULLs become "".
 func (s *Store) Query(sqlText string) ([]string, [][]string, error) {

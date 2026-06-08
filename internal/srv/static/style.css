@@ -989,3 +989,11 @@ body.hide-done .session-item.session-done { display: none; }
 .cur-session:hover { color: var(--fg); border-color: var(--fg); }
 .cur-session.copied { color: var(--success-fg); border-color: var(--success-fg); }
 .cur-session[hidden] { display: none; }
+
+/* Schema-Referenz neben der Query-Box */
+.query-layout { display: flex; gap: 16px; }
+.query-main { flex: 1; min-width: 0; }
+.query-schema { width: 230px; flex-shrink: 0; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 10.5px;
+  color: var(--muted); border-left: 1px solid var(--border); padding-left: 12px; max-height: 50vh; overflow: auto; line-height: 1.5; }
+.query-schema .qs-table { margin-bottom: 5px; word-break: break-word; }
+.query-schema .qs-name { color: var(--prompt-accent); }

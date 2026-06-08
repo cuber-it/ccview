@@ -371,6 +371,25 @@
   };
   document.getElementById("queryRun").addEventListener("click", runQuery);
   document.getElementById("queryModal").addEventListener("click", (e) => { if (e.target.dataset.modalClose) document.getElementById("queryModal").hidden = true; });
+  const querySchema = document.getElementById("querySchema");
+  const loadSchema = async () => {
+    try {
+      const r = await fetch("/api/schema");
+      if (!r.ok) return;
+      const d = await r.json();
+      querySchema.innerHTML = "";
+      Object.keys(d).sort().forEach(t => {
+        const div = document.createElement("div");
+        div.className = "qs-table";
+        const name = document.createElement("span");
+        name.className = "qs-name";
+        name.textContent = t;
+        div.appendChild(name);
+        div.appendChild(document.createTextNode("(" + (d[t] || []).join(", ") + ")"));
+        querySchema.appendChild(div);
+      });
+    } catch { /* ignore */ }
+  };
 
   menuItems.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-action]");
@@ -387,6 +406,7 @@
     } else if (btn.dataset.action === "query") {
       document.getElementById("queryModal").hidden = false;
       document.getElementById("queryInput").focus();
+      loadSchema();
     } else if (btn.dataset.action === "cheatsheet") {
       openCheatsheet();
     } else if (btn.dataset.action === "about") {
