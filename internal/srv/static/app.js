@@ -452,7 +452,7 @@
 
       const body = document.createElement("span");
       body.className = "fav-body";
-      body.textContent = fav.label || "";
+      body.textContent = (live && live.name) || fav.label || "";
       chip.appendChild(body);
 
       const unpin = document.createElement("button");
@@ -660,9 +660,26 @@
     h.querySelector(".grp-count").textContent = count;
     return h;
   };
+  const isActive = (s) => s.current || isToday(s.last_event) || isToday(s.first_event);
+  const loadActiveOrder = () => { try { return JSON.parse(localStorage.getItem("ccview-active-order") || "[]"); } catch { return []; } };
+  const saveActiveOrder = (arr) => localStorage.setItem("ccview-active-order", JSON.stringify(arr));
+  const sortActive = (act) => {
+    const order = loadActiveOrder();
+    const rank = id => { const i = order.indexOf(id); return i < 0 ? 1e9 : i; };
+    return act.map((s, i) => [s, i]).sort((a, b) => (rank(a[0].id) - rank(b[0].id)) || (a[1] - b[1])).map(p => p[0]);
+  };
+  let currentActiveIds = [];
+  const moveActive = (id, dir) => {
+    const arr = [...currentActiveIds];
+    const i = arr.indexOf(id), j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    saveActiveOrder(arr);
+    loadSessions();
+  };
   const renderSessionGroups = (list, buildItem) => {
-    const isActive = (s) => s.current || isToday(s.last_event) || isToday(s.first_event);
-    const active = list.filter(isActive);
+    const active = sortActive(list.filter(isActive));
+    currentActiveIds = active.map(s => s.id);
     const rest = list.filter(s => !isActive(s));
     list.forEach(s => knownProjects.set(s.project || "—", s.project_label || s.project || "—"));
     const addGroup = (label, items, key) => {
@@ -836,6 +853,18 @@
           ctxMenu.hidden = false;
         });
         item.appendChild(burger);
+        if (isActive(s)) {
+          const reorder = document.createElement("div");
+          reorder.className = "session-reorder";
+          const up = document.createElement("button");
+          up.className = "reorder-btn"; up.textContent = "▲"; up.title = "höher stufen";
+          up.addEventListener("click", (e) => { e.stopPropagation(); moveActive(s.id, -1); });
+          const down = document.createElement("button");
+          down.className = "reorder-btn"; down.textContent = "▼"; down.title = "tiefer stufen";
+          down.addEventListener("click", (e) => { e.stopPropagation(); moveActive(s.id, 1); });
+          reorder.append(up, down);
+          item.appendChild(reorder);
+        }
         return item;
       };
       renderSessionGroups(list, buildSessionItem);
