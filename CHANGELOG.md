@@ -42,6 +42,9 @@ Versioning follows [SemVer](https://semver.org/).
 - **Cross-session search**: a third sidebar tab runs a case-insensitive regex
   over every session JSONL and lists matching sessions with hit count, activity
   days, and a snippet — click to open. Reads line by line, handles huge logs.
+- **Delete to trash**: context-menu "Löschen…" moves a session's JSONL to
+  `~/.claude/ccview/trash/` (reversible) and drops its DB metadata; confirm first.
+- **Read-only query box** in Settings: run a single SELECT against the metadata DB.
 - **Built-in cheatsheet** of Claude Code slash commands, opened in its own tab
   with `?` (or the burger menu), linking to the official docs.
 

@@ -337,6 +337,40 @@
   settingsModal.addEventListener("click", (e) => { if (e.target.dataset.modalClose) closeSettings(); });
   document.getElementById("settingsPathsSave").addEventListener("click", (e) => saveRootsCfg(e.target));
 
+  // read-only SQL query box in Settings
+  const queryInput = document.getElementById("queryInput");
+  const queryResult = document.getElementById("queryResult");
+  const renderQueryTable = (cols, rows) => {
+    queryResult.innerHTML = "";
+    if (!cols.length) { queryResult.textContent = "—"; return; }
+    const table = document.createElement("table");
+    table.className = "query-table";
+    const thead = document.createElement("thead");
+    const htr = document.createElement("tr");
+    cols.forEach(c => { const th = document.createElement("th"); th.textContent = c; htr.appendChild(th); });
+    thead.appendChild(htr); table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    rows.forEach(row => {
+      const tr = document.createElement("tr");
+      row.forEach(v => { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); queryResult.appendChild(table);
+    const cnt = document.createElement("div"); cnt.className = "query-count"; cnt.textContent = rows.length + " Zeilen"; queryResult.appendChild(cnt);
+  };
+  const runQuery = async () => {
+    const sql = (queryInput.value || "").trim();
+    if (!sql) return;
+    queryResult.textContent = "…";
+    try {
+      const r = await fetch("/api/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql }) });
+      if (!r.ok) { queryResult.textContent = (await r.text()).slice(0, 200); return; }
+      const d = await r.json();
+      renderQueryTable(d.columns || [], d.rows || []);
+    } catch { queryResult.textContent = "Fehler bei der Abfrage"; }
+  };
+  document.getElementById("queryRun").addEventListener("click", runQuery);
+
   menuItems.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
@@ -836,6 +870,12 @@
       const p = prompt(t("save_as_prompt"), "");
       if (p === null) return;
       exportSession(p.trim() || null, s.id);
+    } else if (b.dataset.act === "delete") {
+      const label = s.name || s.short_id || s.id;
+      if (confirm('Session „' + label + '" löschen?\nDie .jsonl wandert in ~/.claude/ccview/trash/ (umkehrbar).')) {
+        fetch("/api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: s.id }) })
+          .then(r => { if (r.ok) loadSessions(); });
+      }
     }
     closeCtx();
   });

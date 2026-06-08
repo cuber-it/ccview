@@ -107,6 +107,8 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/session-meta", s.handleSessionMeta)
 	s.mux.HandleFunc("/api/groups", s.handleGroups)
 	s.mux.HandleFunc("/api/search", s.handleSearch)
+	s.mux.HandleFunc("/api/delete", s.handleDelete)
+	s.mux.HandleFunc("/api/query", s.handleQuery)
 	return s
 }
 
@@ -468,6 +470,94 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
 	}
+}
+
+// trashDir is where deleted session JSONLs are moved (reversible delete).
+func trashDir() (string, error) {
+	base := os.Getenv("CLAUDE_CONFIG_DIR")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		base = filepath.Join(home, ".claude")
+	}
+	return filepath.Join(base, "ccview", "trash"), nil
+}
+
+// handleDelete moves a session's JSONL to the trash and then drops its DB
+// metadata. The file is moved (not removed) first, so the delete is reversible
+// and a failure leaves nothing half-done.
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Session string `json:"session"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Session == "" {
+		http.Error(w, "session required", http.StatusBadRequest)
+		return
+	}
+	info, ok := s.findSession(body.Session)
+	if !ok {
+		http.Error(w, "session not found: "+body.Session, http.StatusNotFound)
+		return
+	}
+	dir, err := trashDir()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dest := filepath.Join(dir, body.Session+".jsonl")
+	if err := os.Rename(info.Path, dest); err != nil {
+		http.Error(w, "move to trash: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.store.DeleteMeta(body.Session); err != nil {
+		http.Error(w, "drop metadata: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "trash": dest})
+}
+
+// handleQuery runs a single read-only SELECT against the metadata DB.
+func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		SQL string `json:"sql"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	q := strings.TrimSuffix(strings.TrimSpace(body.SQL), ";")
+	if !strings.HasPrefix(strings.ToLower(q), "select") {
+		http.Error(w, "only a SELECT statement is allowed", http.StatusBadRequest)
+		return
+	}
+	if strings.Contains(q, ";") {
+		http.Error(w, "only a single statement is allowed", http.StatusBadRequest)
+		return
+	}
+	cols, rows, err := s.store.Query(q)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{"columns": cols, "rows": rows})
 }
 
 // parseSessionFile reads a full session JSONL and parses it into events,

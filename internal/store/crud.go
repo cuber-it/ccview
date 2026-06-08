@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -190,6 +191,60 @@ func (s *Store) SaveGroups(groups []Group) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// DeleteMeta removes all stored metadata (meta row + note) for a session.
+// Used when a session is deleted; the JSONL itself is handled by the caller.
+func (s *Store) DeleteMeta(sessionID string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM session_meta WHERE session_id=?`, sessionID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM notes WHERE session_id=?`, sessionID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// Query runs a (caller-validated, read-only) SQL statement and returns the
+// column names and rows rendered as strings. NULLs become "".
+func (s *Store) Query(sqlText string) ([]string, [][]string, error) {
+	rows, err := s.db.Query(sqlText)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, nil, err
+	}
+	var out [][]string
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return nil, nil, err
+		}
+		rec := make([]string, len(cols))
+		for i, v := range vals {
+			if v == nil {
+				rec[i] = ""
+			} else if b, ok := v.([]byte); ok {
+				rec[i] = string(b)
+			} else {
+				rec[i] = fmt.Sprintf("%v", v)
+			}
+		}
+		out = append(out, rec)
+	}
+	return cols, out, rows.Err()
 }
 
 // --- one-time migration from the old file-based layout ---

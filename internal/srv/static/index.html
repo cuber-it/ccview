@@ -77,6 +77,10 @@
     <button class="settings-paths-save" id="settingsPathsSave" data-i18n="settings_paths_save">Pfade übernehmen</button>
     <p class="settings-hint" data-i18n="settings_proj_hint">Projekt-Gruppen in der Sidebar — Anzeigename, Reihenfolge, Sichtbarkeit:</p>
     <div class="settings-projects" id="settingsProjects"></div>
+    <h3 class="settings-sub">Datenbank-Abfrage (read-only SELECT)</h3>
+    <textarea class="settings-paths" id="queryInput" rows="2" spellcheck="false" placeholder="SELECT * FROM session_meta"></textarea>
+    <button class="settings-paths-save" id="queryRun">Ausführen</button>
+    <div class="query-result" id="queryResult"></div>
     <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
   </div>
 </div>
@@ -87,6 +91,7 @@
   <button data-act="save">Speichern</button>
   <div class="ctxsep"></div>
   <button data-act="copy">ID kopieren</button>
+  <button data-act="delete" class="ctx-danger">Löschen…</button>
 </div>
 <div class="notes-floater" id="notesFloater" hidden>
   <div class="notes-resize" id="notesResize" title="Breite ziehen"></div>
