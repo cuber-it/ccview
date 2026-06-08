@@ -21,7 +21,7 @@ func TestList(t *testing.T) {
 		"78ff0cff-aaaa-bbbb-cccc-111111111111.jsonl": 0,
 		"704435b8-aaaa-bbbb-cccc-222222222222.jsonl": -10 * time.Minute,
 		"abcdef12-aaaa-bbbb-cccc-333333333333.jsonl": -5 * time.Minute,
-		"readme.md":                                  0,
+		"readme.md": 0,
 	})
 
 	infos, err := List(root, proj)

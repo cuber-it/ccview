@@ -53,7 +53,7 @@ type Block struct {
 	IsError   bool            `json:"is_error,omitempty"`
 	// Image blocks: MIME type + source (either "base64" or "url").
 	ImageMediaType string `json:"image_media_type,omitempty"`
-	ImageData      string `json:"image_data,omitempty"` // base64 payload or URL
+	ImageData      string `json:"image_data,omitempty"`   // base64 payload or URL
 	ImageSource    string `json:"image_source,omitempty"` // "base64" or "url"
 }
 

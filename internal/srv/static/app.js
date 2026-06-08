@@ -1673,8 +1673,8 @@
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   document.addEventListener("keydown", (e) => {
-    const t = e.target;
-    const typing = t.tagName === "INPUT" || t.tagName === "TEXTAREA";
+    const target = e.target;
+    const typing = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
     if (e.key === "Escape") {
       if (!aboutModal.hidden) { closeAbout(); return; }
       if (!searchbar.hidden) closeSearch();
