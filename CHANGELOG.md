@@ -7,11 +7,21 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Central SQLite store** (`~/.claude/ccview/ccview.db`, pure-Go driver, honours
+  `CLAUDE_CONFIG_DIR`) now holds config, project roots, per-session notes, custom
+  names/favorites, and project-group settings — replacing the earlier mix of
+  `roots.json`, `notes/*.md`, and browser localStorage. Names and notes are now
+  the same across browsers and ports instead of per-origin. Legacy files migrate
+  into the DB on first start (idempotent, never overwrites). Also fixes a
+  long-standing bug where per-session notes were never actually persisted.
+
 ### Added
 
 - **Multiple project roots**: scan several Claude projects directories at
-  once. Manage the list in Settings → "Projekt-Pfade" (persisted to
-  `~/.config/ccview/roots.json`; `~` expanded, duplicates dropped). New
+  once. Manage the list in Settings → "Projekt-Pfade" (stored in the central
+  SQLite DB; `~` expanded, duplicates dropped). New
   `--projects-root` flag and `CLAUDE_CONFIG_DIR` support.
 - **Settings dialog** (burger menu): curate sidebar project groups —
   display name, order, and visibility (localStorage).

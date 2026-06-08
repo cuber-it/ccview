@@ -19,6 +19,7 @@ import (
 	"github.com/cuber-it/ccview/internal/export"
 	"github.com/cuber-it/ccview/internal/parse"
 	"github.com/cuber-it/ccview/internal/session"
+	"github.com/cuber-it/ccview/internal/store"
 	"github.com/cuber-it/ccview/internal/tail"
 )
 
@@ -37,6 +38,7 @@ type Config struct {
 type Server struct {
 	mux          *http.ServeMux
 	hub          *Hub
+	store        *store.Store
 	projectsRoot string
 	roots        []string
 	projectDir   string
@@ -59,13 +61,23 @@ func noCache(h http.Handler) http.Handler {
 }
 
 func New(cfg Config) *Server {
-	roots := loadRootsConfig()
-	if len(roots) == 0 && cfg.ProjectsRoot != "" {
+	st, err := store.Open("")
+	if err != nil {
+		panic(fmt.Errorf("open ccview store: %w", err))
+	}
+	// Migrate the legacy file-based state into the DB once (idempotent).
+	legacyRoots, _ := rootsConfigPath()
+	if mErr := st.MigrateFromFiles(legacyRoots, legacyNotesDir()); mErr != nil && cfg.Verbose {
+		fmt.Fprintf(os.Stderr, "ccview: migration warning: %v\n", mErr)
+	}
+	roots, ok, _ := st.GetRoots()
+	if (!ok || len(roots) == 0) && cfg.ProjectsRoot != "" {
 		roots = []string{cfg.ProjectsRoot}
 	}
 	s := &Server{
 		mux:          http.NewServeMux(),
 		hub:          newHub(),
+		store:        st,
 		projectsRoot: cfg.ProjectsRoot,
 		roots:        roots,
 		projectDir:   cfg.ProjectDir,
@@ -92,6 +104,8 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/version", s.handleVersion)
 	s.mux.HandleFunc("/api/notes", s.handleNotes)
 	s.mux.HandleFunc("/api/roots", s.handleRoots)
+	s.mux.HandleFunc("/api/session-meta", s.handleSessionMeta)
+	s.mux.HandleFunc("/api/groups", s.handleGroups)
 	return s
 }
 
@@ -206,6 +220,8 @@ type sessionDTO struct {
 	FirstPrompt  string    `json:"first_prompt,omitempty"`
 	Current      bool      `json:"current"`
 	SameProject  bool      `json:"same_project"`
+	Name         string    `json:"name,omitempty"`
+	Favorite     bool      `json:"favorite"`
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
@@ -215,6 +231,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	sessions := session.ListAllRoots(roots)
+	meta, _ := s.store.AllMeta()
 	s.mu.Lock()
 	curID := s.currentID
 	s.mu.Unlock()
@@ -237,6 +254,8 @@ func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
 			FirstPrompt:  first,
 			Current:      si.ID == curID,
 			SameProject:  si.Project == s.projectDir,
+			Name:         meta[si.ID].Name,
+			Favorite:     meta[si.ID].Favorite,
 		})
 	}
 	writeJSON(w, out)
@@ -334,32 +353,29 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// notesPath returns the on-disk location of a session's note file.
-func notesPath(sessionID string) string {
+// legacyNotesDir is the old file-based notes location, kept only as a one-time
+// migration source into the DB.
+func legacyNotesDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Workspace", "claude-code", "notes", sessionID+".md")
+	return filepath.Join(home, "Workspace", "claude-code", "notes")
 }
 
-// handleNotes serves GET (load) and POST (save) of a per-session note file.
+// handleNotes serves GET (load) and POST (save) of a per-session note, backed
+// by the central store.
 func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request) {
 	sess := r.URL.Query().Get("session")
 	if sess == "" || strings.ContainsAny(sess, "/\\") || strings.Contains(sess, "..") {
 		http.Error(w, "invalid session", http.StatusBadRequest)
 		return
 	}
-	path := notesPath(sess)
 	switch r.Method {
 	case http.MethodGet:
-		data, err := os.ReadFile(path)
+		content, err := s.store.GetNote(sess)
 		if err != nil {
-			if os.IsNotExist(err) {
-				writeJSON(w, map[string]any{"content": ""})
-				return
-			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, map[string]any{"content": string(data)})
+		writeJSON(w, map[string]any{"content": content})
 	case http.MethodPost:
 		var body struct {
 			Content string `json:"content"`
@@ -368,15 +384,77 @@ func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := s.store.SetNote(sess, body.Content); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := os.WriteFile(path, []byte(body.Content), 0o644); err != nil {
+		writeJSON(w, map[string]any{"ok": true})
+	default:
+		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleSessionMeta sets a session's custom name and/or favorite flag. Fields
+// left out of the JSON body (nil) are not touched.
+func (s *Server) handleSessionMeta(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Session  string  `json:"session"`
+		Name     *string `json:"name"`
+		Favorite *bool   `json:"favorite"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Session == "" {
+		http.Error(w, "session required", http.StatusBadRequest)
+		return
+	}
+	if body.Name != nil {
+		if err := s.store.SetName(body.Session, strings.TrimSpace(*body.Name)); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, map[string]any{"ok": true, "path": path})
+	}
+	if body.Favorite != nil {
+		if err := s.store.SetFavorite(body.Session, *body.Favorite); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// handleGroups returns (GET) or replaces (POST) the project-group display config.
+func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		groups, err := s.store.Groups()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if groups == nil {
+			groups = []store.Group{}
+		}
+		writeJSON(w, map[string]any{"groups": groups})
+	case http.MethodPost:
+		var body struct {
+			Groups []store.Group `json:"groups"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := s.store.SaveGroups(body.Groups); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
 	default:
 		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
 	}
@@ -427,7 +505,7 @@ func (s *Server) handleRoots(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		clean := cleanRoots(body.Roots)
-		if err := saveRootsConfig(clean); err != nil {
+		if err := s.store.SetRoots(clean); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -469,41 +547,6 @@ func rootsConfigPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, "ccview", "roots.json"), nil
-}
-
-// loadRootsConfig reads the persisted roots list; nil if absent/unreadable.
-func loadRootsConfig() []string {
-	path, err := rootsConfigPath()
-	if err != nil {
-		return nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	var cfg struct {
-		Roots []string `json:"roots"`
-	}
-	if json.Unmarshal(data, &cfg) != nil {
-		return nil
-	}
-	return cfg.Roots
-}
-
-// saveRootsConfig persists the roots list, creating the config dir as needed.
-func saveRootsConfig(roots []string) error {
-	path, err := rootsConfigPath()
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(map[string][]string{"roots": roots}, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o644)
 }
 
 // writeMarkdownExport renders events as Markdown, ensures the parent dir

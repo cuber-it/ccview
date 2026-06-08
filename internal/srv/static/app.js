@@ -322,7 +322,7 @@
       if (r.ok) { btn.textContent = t("settings_paths_saved"); setTimeout(() => { btn.textContent = t("settings_paths_save"); if (typeof loadSessions === "function") loadSessions(); }, 900); }
     } catch { /* ignore */ }
   };
-  const openSettings = () => { renderSettingsProjects(); loadRootsCfg(); settingsModal.hidden = false; };
+  const openSettings = async () => { await refreshProjGroups(); renderSettingsProjects(); loadRootsCfg(); settingsModal.hidden = false; };
   const closeSettings = () => { settingsModal.hidden = true; };
   settingsModal.addEventListener("click", (e) => { if (e.target.dataset.modalClose) closeSettings(); });
   document.getElementById("settingsPathsSave").addEventListener("click", (e) => saveRootsCfg(e.target));
@@ -538,8 +538,43 @@
 
   const groupCollapsed = (key) => localStorage.getItem("ccview-grp-" + key) === "1";
   const knownProjects = new Map();
-  const loadProjCfg = () => { try { return JSON.parse(localStorage.getItem("ccview-projects") || "{}"); } catch { return {}; } };
-  const saveProjCfg = (cfg) => localStorage.setItem("ccview-projects", JSON.stringify(cfg));
+  let projGroupsCache = {};
+  const loadProjCfg = () => projGroupsCache;
+  const saveProjCfg = (cfg) => {
+    projGroupsCache = cfg;
+    const groups = Object.entries(cfg).map(([key, v]) => ({
+      key, label: v.label || "", order: v.order != null ? v.order : 0, hidden: !!v.hidden,
+    }));
+    fetch("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groups }) });
+  };
+  const refreshProjGroups = async () => {
+    try {
+      const r = await fetch("/api/groups");
+      const d = await r.json();
+      const m = {};
+      (d.groups || []).forEach(g => { m[g.key] = { label: g.label, order: g.order, hidden: g.hidden }; });
+      projGroupsCache = m;
+    } catch { /* ignore */ }
+  };
+  const migrateLocalToServer = async () => {
+    try {
+      const names = JSON.parse(localStorage.getItem("ccview-names") || "{}");
+      for (const [id, nm] of Object.entries(names)) {
+        if (nm) await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: id, name: nm }) });
+      }
+      if (Object.keys(names).length) localStorage.removeItem("ccview-names");
+    } catch { /* ignore */ }
+    try {
+      const proj = JSON.parse(localStorage.getItem("ccview-projects") || "{}");
+      if (Object.keys(proj).length) {
+        const groups = Object.entries(proj).map(([key, v]) => ({ key, label: v.label || "", order: v.order != null ? v.order : 0, hidden: !!v.hidden }));
+        await fetch("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groups }) });
+        localStorage.removeItem("ccview-projects");
+      }
+    } catch { /* ignore */ }
+  };
+  migrateLocalToServer().then(refreshProjGroups).then(() => { if (typeof loadSessions === "function") loadSessions(); });
   const groupHeader = (label, count, key) => {
     const h = document.createElement("div");
     h.className = "session-group-head" + (key ? " collapsible" : "");
@@ -658,7 +693,7 @@
         const id = document.createElement("div");
         id.className = "session-id";
         const left = document.createElement("span");
-        const customName = nameFor(s.id);
+        const customName = s.name;
         left.textContent = customName || s.short_id;
         if (customName) left.classList.add("session-named");
         const right = document.createElement("span");
@@ -731,12 +766,9 @@
   // ---------- session context menu (rename / copy id / pin / favorite) ----------
   const ctxMenu = document.getElementById("sessionCtx");
   let ctxSession = null;
-  const loadNames = () => { try { return JSON.parse(localStorage.getItem("ccview-names") || "{}"); } catch { return {}; } };
-  const nameFor = (id) => loadNames()[id] || null;
-  const saveName = (id, name) => {
-    const m = loadNames();
-    if (name) m[id] = name; else delete m[id];
-    localStorage.setItem("ccview-names", JSON.stringify(m));
+  const setSessionName = async (id, name) => {
+    await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session: id, name }) });
   };
   const closeCtx = () => { ctxMenu.hidden = true; ctxSession = null; };
   sessionList.addEventListener("contextmenu", (e) => {
@@ -753,8 +785,8 @@
     if (!b || !ctxSession) return;
     const s = ctxSession;
     if (b.dataset.act === "rename") {
-      const name = prompt("Name für diese Session (leer = zurücksetzen):", nameFor(s.id) || "");
-      if (name !== null) { saveName(s.id, name.trim()); loadSessions(); }
+      const name = prompt("Name für diese Session (leer = zurücksetzen):", s.name || "");
+      if (name !== null) { setSessionName(s.id, name.trim()).then(loadSessions); }
     } else if (b.dataset.act === "copy") {
       navigator.clipboard.writeText(s.id);
     } else if (b.dataset.act === "fav") {
@@ -1531,8 +1563,8 @@
   const save = async () => {
     if (!sessionId) return;
     try {
-      await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session: sessionId, content: easymde.value() }) });
+      await fetch("/api/notes?session=" + encodeURIComponent(sessionId), { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: easymde.value() }) });
       titleEl.textContent = "Notizen · gespeichert ✓";
       setTimeout(() => { titleEl.textContent = shortTitle(); }, 1200);
     } catch { /* ignore */ }
