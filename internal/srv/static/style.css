@@ -1003,3 +1003,4 @@ body.hide-done .session-item.session-done { display: none; }
 .session-item:hover .session-reorder { display: flex; }
 .reorder-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 9px; padding: 0 2px; line-height: 1; }
 .reorder-btn:hover { color: var(--fg); }
+.notes-tools button.dirty { color: var(--prompt-accent); }

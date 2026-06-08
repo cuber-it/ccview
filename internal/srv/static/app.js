@@ -107,6 +107,22 @@
       delete_confirm: "Session „${label}“ löschen?\nDie .jsonl wandert in ~/.claude/ccview/trash/ (umkehrbar).",
       fav_unpin_t: "Entfernen",
       cursession_copied: "✓ kopiert",
+      md_bold: "Fett (Strg-B)",
+      md_italic: "Kursiv (Strg-I)",
+      md_heading: "Überschrift",
+      md_code: "Codeblock",
+      md_quote: "Zitat",
+      md_ul: "Liste",
+      md_ol: "Nummerierte Liste",
+      md_link: "Link einfügen",
+      md_image: "Bild einfügen",
+      md_table: "Tabelle",
+      md_preview: "Vorschau",
+      md_sbs: "Side-by-Side",
+      md_fullscreen: "Vollbild",
+      md_undo: "Rückgängig (Strg-Z)",
+      md_redo: "Wiederholen (Strg-Y)",
+      notes_unsaved: "ungespeicherte Änderungen",
     },
     en: {
       status_connecting: "connecting…",
@@ -214,6 +230,22 @@
       delete_confirm: "Delete session “${label}”?\nThe .jsonl moves to ~/.claude/ccview/trash/ (reversible).",
       fav_unpin_t: "Remove",
       cursession_copied: "✓ copied",
+      md_bold: "Bold (Ctrl-B)",
+      md_italic: "Italic (Ctrl-I)",
+      md_heading: "Heading",
+      md_code: "Code block",
+      md_quote: "Quote",
+      md_ul: "Bullet list",
+      md_ol: "Numbered list",
+      md_link: "Insert link",
+      md_image: "Insert image",
+      md_table: "Table",
+      md_preview: "Preview",
+      md_sbs: "Side-by-side",
+      md_fullscreen: "Fullscreen",
+      md_undo: "Undo (Ctrl-Z)",
+      md_redo: "Redo (Ctrl-Y)",
+      notes_unsaved: "unsaved changes",
     },
   };
 
@@ -1861,41 +1893,51 @@
     status: false,
     placeholder: "Notizen zu dieser Session… (Markdown)",
     toolbar: [
-      { name: "bold", action: EasyMDE.toggleBold, className: "fa fa-bold", title: "Fett (Strg-B)" },
-      { name: "italic", action: EasyMDE.toggleItalic, className: "fa fa-italic", title: "Kursiv (Strg-I)" },
-      { name: "heading", action: EasyMDE.toggleHeadingSmaller, className: "fa fa-header", title: "Überschrift" },
+      { name: "bold", action: EasyMDE.toggleBold, className: "fa fa-bold", title: t("md_bold") },
+      { name: "italic", action: EasyMDE.toggleItalic, className: "fa fa-italic", title: t("md_italic") },
+      { name: "heading", action: EasyMDE.toggleHeadingSmaller, className: "fa fa-header", title: t("md_heading") },
       "|",
-      { name: "code", action: EasyMDE.toggleCodeBlock, className: "fa fa-code", title: "Codeblock" },
-      { name: "quote", action: EasyMDE.toggleBlockquote, className: "fa fa-quote-left", title: "Zitat" },
-      { name: "unordered-list", action: EasyMDE.toggleUnorderedList, className: "fa fa-list-ul", title: "Liste" },
-      { name: "ordered-list", action: EasyMDE.toggleOrderedList, className: "fa fa-list-ol", title: "Nummerierte Liste" },
+      { name: "code", action: EasyMDE.toggleCodeBlock, className: "fa fa-code", title: t("md_code") },
+      { name: "quote", action: EasyMDE.toggleBlockquote, className: "fa fa-quote-left", title: t("md_quote") },
+      { name: "unordered-list", action: EasyMDE.toggleUnorderedList, className: "fa fa-list-ul", title: t("md_ul") },
+      { name: "ordered-list", action: EasyMDE.toggleOrderedList, className: "fa fa-list-ol", title: t("md_ol") },
       "|",
-      { name: "link", action: EasyMDE.drawLink, className: "fa fa-link", title: "Link einfügen" },
-      { name: "image", action: EasyMDE.drawImage, className: "fa fa-image", title: "Bild einfügen" },
-      { name: "table", action: EasyMDE.drawTable, className: "fa fa-table", title: "Tabelle" },
+      { name: "link", action: EasyMDE.drawLink, className: "fa fa-link", title: t("md_link") },
+      { name: "image", action: EasyMDE.drawImage, className: "fa fa-image", title: t("md_image") },
+      { name: "table", action: EasyMDE.drawTable, className: "fa fa-table", title: t("md_table") },
       "|",
-      { name: "preview", action: EasyMDE.togglePreview, className: "fa fa-eye no-disable", title: "Vorschau" },
-      { name: "side-by-side", action: EasyMDE.toggleSideBySide, className: "fa fa-columns no-disable", title: "Side-by-Side" },
-      { name: "fullscreen", action: EasyMDE.toggleFullScreen, className: "fa fa-arrows-alt no-disable", title: "Vollbild" },
+      { name: "preview", action: EasyMDE.togglePreview, className: "fa fa-eye no-disable", title: t("md_preview") },
+      { name: "side-by-side", action: EasyMDE.toggleSideBySide, className: "fa fa-columns no-disable", title: t("md_sbs") },
+      { name: "fullscreen", action: EasyMDE.toggleFullScreen, className: "fa fa-arrows-alt no-disable", title: t("md_fullscreen") },
       "|",
-      { name: "undo", action: EasyMDE.undo, className: "fa fa-undo no-disable", title: "Rückgängig (Strg-Z)" },
-      { name: "redo", action: EasyMDE.redo, className: "fa fa-repeat no-disable", title: "Wiederholen (Strg-Y)" },
+      { name: "undo", action: EasyMDE.undo, className: "fa fa-undo no-disable", title: t("md_undo") },
+      { name: "redo", action: EasyMDE.redo, className: "fa fa-repeat no-disable", title: t("md_redo") },
     ],
   });
+  const notesSaveBtn = document.getElementById("notesSave");
+  let loading = false;
+  const setDirty = (d) => {
+    notesSaveBtn.classList.toggle("dirty", d);
+    notesSaveBtn.title = d ? t("notes_unsaved") : t("notes_save_t");
+  };
+  easymde.codemirror.on("change", () => { if (!loading) setDirty(true); });
   let sessionId = null;
   const shortTitle = () => sessionId ? t("notes_title") + " · " + sessionId.slice(0, 8) : t("notes_title");
   const load = async () => {
     sessionId = localStorage.getItem("ccview.lastSession");
     titleEl.textContent = shortTitle();
-    if (!sessionId) { easymde.value(""); return; }
+    loading = true;
+    if (!sessionId) { easymde.value(""); loading = false; setDirty(false); return; }
     try { const r = await fetch("/api/notes?session=" + encodeURIComponent(sessionId)); easymde.value((await r.json()).content || ""); } catch { /* ignore */ }
+    loading = false; setDirty(false);
   };
   const save = async () => {
     if (!sessionId) return;
     try {
       await fetch("/api/notes?session=" + encodeURIComponent(sessionId), { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: easymde.value() }) });
-      titleEl.textContent = "Notizen · gespeichert ✓";
+      setDirty(false);
+      titleEl.textContent = "✓ " + shortTitle();
       setTimeout(() => { titleEl.textContent = shortTitle(); }, 1200);
     } catch { /* ignore */ }
   };
