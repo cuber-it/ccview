@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ccview · Claude Code Cheatsheet</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { padding: 22px 30px 40px; max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .cheat-doc { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
+  .cheat-doc a { color: var(--link); }
+  .cheat-cols { columns: 320px 3; column-gap: 26px; }
+  .cheat-group { break-inside: avoid; margin: 0 0 16px; }
+  .cheat-group h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--prompt-accent); margin: 0 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+  .cheat-row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 12.5px; }
+  .cheat-row code { color: var(--strong-color); background: var(--code-bg); padding: 1px 5px;
+    border-radius: 3px; white-space: nowrap; font-size: 12px; }
+  .cheat-row span { color: var(--fg); opacity: .85; }
+</style>
+<script>document.documentElement.dataset.theme = localStorage.getItem("ccview.theme") || "dark";</script>
+</head>
+<body>
+  <h1>Claude Code · Slash-Kommandos</h1>
+  <p class="cheat-doc">Vollständig &amp; aktuell in der <a href="https://code.claude.com/docs/en/commands.md" target="_blank" rel="noopener">offiziellen Doku ↗</a>. Plugin-Kommandos erscheinen namespaced als <code>/plugin:command</code>. Eigene Skills/Commands aus <code>~/.claude/</code> rufst du wie eingebaute auf.</p>
+  <div class="cheat-cols">
+    <div class="cheat-group">
+      <h3>Session &amp; Kontext</h3>
+      <div class="cheat-row"><code>/clear</code><span>neue Unterhaltung, Projekt-Memory bleibt</span></div>
+      <div class="cheat-row"><code>/resume</code><span>frühere Session per ID/Name öffnen</span></div>
+      <div class="cheat-row"><code>/rename</code><span>Session benennen</span></div>
+      <div class="cheat-row"><code>/context</code><span>Kontext-Auslastung anzeigen</span></div>
+      <div class="cheat-row"><code>/compact</code><span>Verlauf zusammenfassen, Kontext freigeben</span></div>
+      <div class="cheat-row"><code>/rewind</code><span>Code/Verlauf auf Checkpoint zurück</span></div>
+      <div class="cheat-row"><code>/export</code><span>Unterhaltung als Text exportieren</span></div>
+      <div class="cheat-row"><code>/copy</code><span>letzte Antwort in die Zwischenablage</span></div>
+    </div>
+    <div class="cheat-group">
+      <h3>Konfig &amp; Setup</h3>
+      <div class="cheat-row"><code>/init</code><span>CLAUDE.md anlegen</span></div>
+      <div class="cheat-row"><code>/config</code><span>Einstellungen (Theme, Modell, …)</span></div>
+      <div class="cheat-row"><code>/memory</code><span>Memory-Dateien bearbeiten</span></div>
+      <div class="cheat-row"><code>/permissions</code><span>Tool-Regeln (allow/ask/deny)</span></div>
+      <div class="cheat-row"><code>/mcp</code><span>MCP-Server &amp; OAuth verwalten</span></div>
+      <div class="cheat-row"><code>/hooks</code><span>Hook-Konfiguration ansehen</span></div>
+      <div class="cheat-row"><code>/plugin</code><span>Plugins verwalten</span></div>
+      <div class="cheat-row"><code>/terminal-setup</code><span>Terminal-Keybindings einrichten</span></div>
+    </div>
+    <div class="cheat-group">
+      <h3>Modell &amp; Aufwand</h3>
+      <div class="cheat-row"><code>/model</code><span>Modell wechseln + als Default</span></div>
+      <div class="cheat-row"><code>/effort</code><span>Reasoning-Aufwand (low…ultracode)</span></div>
+      <div class="cheat-row"><code>/fast</code><span>Fast-Mode an/aus</span></div>
+    </div>
+    <div class="cheat-group">
+      <h3>Review &amp; Qualität</h3>
+      <div class="cheat-row"><code>/code-review</code><span>Diff auf Bugs prüfen (<code>--fix</code>)</span></div>
+      <div class="cheat-row"><code>/code-review ultra</code><span>tiefer Multi-Agent-Cloud-Review</span></div>
+      <div class="cheat-row"><code>/security-review</code><span>Änderungen auf Sicherheitsrisiken</span></div>
+      <div class="cheat-row"><code>/simplify</code><span>Aufräum-Potenzial finden/anwenden</span></div>
+      <div class="cheat-row"><code>/review</code><span>Pull Request lokal reviewen</span></div>
+      <div class="cheat-row"><code>/diff</code><span>interaktiver Diff-Viewer</span></div>
+    </div>
+    <div class="cheat-group">
+      <h3>Ausführung &amp; Automation</h3>
+      <div class="cheat-row"><code>/plan</code><span>Plan-Modus für größere Änderungen</span></div>
+      <div class="cheat-row"><code>/agents</code><span>Subagenten verwalten</span></div>
+      <div class="cheat-row"><code>/tasks</code><span>Hintergrund-Arbeit ansehen</span></div>
+      <div class="cheat-row"><code>/background</code><span>Session als Hintergrund-Agent</span></div>
+      <div class="cheat-row"><code>/loop</code><span>Prompt wiederholt ausführen</span></div>
+      <div class="cheat-row"><code>/run</code> · <code>/verify</code><span>App starten &amp; Verhalten prüfen</span></div>
+    </div>
+    <div class="cheat-group">
+      <h3>Info &amp; Diagnose</h3>
+      <div class="cheat-row"><code>/help</code><span>verfügbare Kommandos</span></div>
+      <div class="cheat-row"><code>/status</code><span>Version, Modell, Account, Verbindung</span></div>
+      <div class="cheat-row"><code>/usage</code> · <code>/cost</code><span>Kosten &amp; Limits</span></div>
+      <div class="cheat-row"><code>/doctor</code><span>Installation/Konfig diagnostizieren</span></div>
+      <div class="cheat-row"><code>/recap</code><span>Einzeiler-Zusammenfassung</span></div>
+      <div class="cheat-row"><code>/release-notes</code><span>Changelog</span></div>
+      <div class="cheat-row"><code>/add-dir</code><span>Arbeitsverzeichnis hinzufügen</span></div>
+    </div>
+    <div class="cheat-group">
+      <h3>Account &amp; Web</h3>
+      <div class="cheat-row"><code>/login</code> · <code>/logout</code><span>An-/Abmelden</span></div>
+      <div class="cheat-row"><code>/desktop</code><span>Session in Desktop-App fortsetzen</span></div>
+      <div class="cheat-row"><code>/remote-control</code><span>Session von claude.ai steuerbar</span></div>
+    </div>
+    <div class="cheat-group">
+      <h3>Mitgelieferte Skills</h3>
+      <div class="cheat-row"><code>/deep-research</code><span>Web-Recherche &amp; Quellen-Synthese</span></div>
+      <div class="cheat-row"><code>/claude-api</code><span>Claude-API-Referenz, Migration</span></div>
+    </div>
+  </div>
+</body>
+</html>

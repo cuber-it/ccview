@@ -82,11 +82,12 @@ func (s *Store) SetNote(sessionID, content string) error {
 type Meta struct {
 	Name     string `json:"name"`
 	Favorite bool   `json:"favorite"`
+	Done     bool   `json:"done"`
 }
 
 // AllMeta returns every session's metadata, keyed by session ID.
 func (s *Store) AllMeta() (map[string]Meta, error) {
-	rows, err := s.db.Query(`SELECT session_id, COALESCE(name,''), favorite FROM session_meta`)
+	rows, err := s.db.Query(`SELECT session_id, COALESCE(name,''), favorite, done FROM session_meta`)
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +95,11 @@ func (s *Store) AllMeta() (map[string]Meta, error) {
 	out := make(map[string]Meta)
 	for rows.Next() {
 		var id, name string
-		var fav int
-		if err := rows.Scan(&id, &name, &fav); err != nil {
+		var fav, done int
+		if err := rows.Scan(&id, &name, &fav, &done); err != nil {
 			return nil, err
 		}
-		out[id] = Meta{Name: name, Favorite: fav != 0}
+		out[id] = Meta{Name: name, Favorite: fav != 0, Done: done != 0}
 	}
 	return out, rows.Err()
 }
@@ -122,6 +123,19 @@ func (s *Store) SetFavorite(sessionID string, fav bool) error {
 		`INSERT INTO session_meta(session_id,favorite,updated_at) VALUES(?,?,?)
 		 ON CONFLICT(session_id) DO UPDATE SET favorite=excluded.favorite, updated_at=excluded.updated_at`,
 		sessionID, f, now())
+	return err
+}
+
+// SetDone sets a session's done flag.
+func (s *Store) SetDone(sessionID string, done bool) error {
+	d := 0
+	if done {
+		d = 1
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO session_meta(session_id,done,updated_at) VALUES(?,?,?)
+		 ON CONFLICT(session_id) DO UPDATE SET done=excluded.done, updated_at=excluded.updated_at`,
+		sessionID, d, now())
 	return err
 }
 

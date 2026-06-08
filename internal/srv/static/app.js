@@ -265,6 +265,16 @@
     if (e.target.dataset.modalClose) closeAbout();
   });
 
+  // Cheatsheet opens in its own tab so ccview stays untouched.
+  const openCheatsheet = () => window.open("cheatsheet.html", "ccview-cheatsheet");
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement.isContentEditable) return;
+    e.preventDefault();
+    openCheatsheet();
+  });
+
   // ---------- settings ----------
   const settingsModal = document.getElementById("settingsModal");
   const settingsProjects = document.getElementById("settingsProjects");
@@ -339,6 +349,8 @@
       exportSession(p.trim() || null);
     } else if (btn.dataset.action === "settings") {
       openSettings();
+    } else if (btn.dataset.action === "cheatsheet") {
+      openCheatsheet();
     } else if (btn.dataset.action === "about") {
       openAbout();
     }
@@ -662,6 +674,19 @@
     collapseAllBtn.textContent = anyOpen ? "⊞" : "⊟";
   });
 
+  const hideDoneBtn = document.getElementById("sessionHideDone");
+  const applyHideDone = () => {
+    const hide = localStorage.getItem("ccview-hide-done") === "1";
+    document.body.classList.toggle("hide-done", hide);
+    if (hideDoneBtn) hideDoneBtn.classList.toggle("active", hide);
+  };
+  if (hideDoneBtn) hideDoneBtn.addEventListener("click", () => {
+    const hide = localStorage.getItem("ccview-hide-done") === "1";
+    localStorage.setItem("ccview-hide-done", hide ? "0" : "1");
+    applyHideDone();
+  });
+  applyHideDone();
+
   const loadSessions = async () => {
     try {
       const res = await fetch("/api/sessions");
@@ -681,6 +706,7 @@
         if (s.same_project) cls += " same-project";
         if (isToday(s.last_event) || isToday(s.first_event)) cls += " today";
         if (s.id === mainID) cls += " is-main";
+        if (s.done) cls += " session-done";
         item.className = cls;
         item.dataset.fullId = s.id;
 
@@ -770,6 +796,10 @@
     await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session: id, name }) });
   };
+  const setSessionDone = async (id, done) => {
+    await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session: id, done }) });
+  };
   const closeCtx = () => { ctxMenu.hidden = true; ctxSession = null; };
   sessionList.addEventListener("contextmenu", (e) => {
     const item = e.target.closest(".session-item");
@@ -787,6 +817,8 @@
     if (b.dataset.act === "rename") {
       const name = prompt("Name für diese Session (leer = zurücksetzen):", s.name || "");
       if (name !== null) { setSessionName(s.id, name.trim()).then(loadSessions); }
+    } else if (b.dataset.act === "done") {
+      setSessionDone(s.id, !s.done).then(loadSessions);
     } else if (b.dataset.act === "copy") {
       navigator.clipboard.writeText(s.id);
     } else if (b.dataset.act === "fav") {

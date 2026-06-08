@@ -949,3 +949,9 @@ body.notes-pinned .container { margin-right: var(--notes-w); }
 .settings-ord:disabled { opacity: .3; cursor: default; }
 .settings-proj-name { flex: 1; min-width: 0; padding: 3px 6px; background: var(--panel-bg); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; }
 .settings-proj-vis { display: flex; align-items: center; gap: 3px; font-size: 11px; opacity: .8; white-space: nowrap; }
+
+/* Done-Marker pro Session */
+.session-item.session-done { opacity: .5; }
+.session-item.session-done:hover { opacity: .8; }
+.session-item.session-done .session-id::before { content: "✓ "; color: var(--success-fg); font-weight: 700; }
+body.hide-done .session-item.session-done { display: none; }

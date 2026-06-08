@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS session_meta (
   session_id TEXT PRIMARY KEY,
   name       TEXT,
   favorite   INTEGER NOT NULL DEFAULT 0,
+  done       INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT
 );
 CREATE TABLE IF NOT EXISTS notes (
@@ -77,7 +78,38 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
+	// idempotent column migrations so existing databases pick up new columns
+	if err := ensureColumn(db, "session_meta", "done", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate session_meta.done: %w", err)
+	}
 	return &Store{db: db}, nil
+}
+
+// ensureColumn adds a column to a table if it is not already present, so older
+// databases gain new columns without a destructive recreate.
+func ensureColumn(db *sql.DB, table, column, decl string) error {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.Exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + decl)
+	return err
 }
 
 // Close closes the underlying database.

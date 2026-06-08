@@ -222,6 +222,7 @@ type sessionDTO struct {
 	SameProject  bool      `json:"same_project"`
 	Name         string    `json:"name,omitempty"`
 	Favorite     bool      `json:"favorite"`
+	Done         bool      `json:"done"`
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
@@ -256,6 +257,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
 			SameProject:  si.Project == s.projectDir,
 			Name:         meta[si.ID].Name,
 			Favorite:     meta[si.ID].Favorite,
+			Done:         meta[si.ID].Done,
 		})
 	}
 	writeJSON(w, out)
@@ -405,6 +407,7 @@ func (s *Server) handleSessionMeta(w http.ResponseWriter, r *http.Request) {
 		Session  string  `json:"session"`
 		Name     *string `json:"name"`
 		Favorite *bool   `json:"favorite"`
+		Done     *bool   `json:"done"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -422,6 +425,12 @@ func (s *Server) handleSessionMeta(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Favorite != nil {
 		if err := s.store.SetFavorite(body.Session, *body.Favorite); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	if body.Done != nil {
+		if err := s.store.SetDone(body.Session, *body.Done); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

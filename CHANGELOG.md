@@ -37,6 +37,10 @@ Versioning follows [SemVer](https://semver.org/).
 - **Dev mode**: `CCVIEW_DEV=<dir>` serves `static/` from disk (no-cache) for
   live editing without a rebuild.
 - **Collapse/expand all** sidebar groups with one button in the Sessions tab.
+- **Done marker** per session (context menu) plus a filter to hide/show done
+  sessions — the basis for later archiving/deletion.
+- **Built-in cheatsheet** of Claude Code slash commands, opened in its own tab
+  with `?` (or the burger menu), linking to the official docs.
 
 ### Changed
 
