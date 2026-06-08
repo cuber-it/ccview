@@ -798,7 +798,7 @@
   let ctxSession = null;
   const ctxDoneBtn = ctxMenu.querySelector('button[data-act="done"]');
   const updateCtxDoneLabel = () => {
-    if (ctxDoneBtn && ctxSession) ctxDoneBtn.textContent = ctxSession.done ? "Öffnen" : "Schließen";
+    if (ctxDoneBtn && ctxSession) ctxDoneBtn.textContent = ctxSession.done ? "Einblenden" : "Ausblenden";
   };
   const setSessionName = async (id, name) => {
     await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" },
