@@ -1,0 +1,25 @@
+services:
+  ccview:
+    build:
+      context: .
+      args:
+        VERSION: docker
+    image: ccview
+    container_name: ccview
+    # ccview has no authentication — only expose it on the host loopback.
+    ports:
+      - "127.0.0.1:12100:12100"
+    environment:
+      CLAUDE_CONFIG_DIR: /data
+    volumes:
+      # Claude Code sessions, read-only — ccview never writes to them.
+      - ${HOME}/.claude/projects:/data/projects:ro
+      # ccview's own database (config, names, notes, done, trash).
+      # A host bind-mount (not a named volume) so the non-root container user
+      # can write it. Create it first:  mkdir -p ~/.claude/ccview
+      - ${HOME}/.claude/ccview:/data/ccview
+    # Run as the host user so the read-only sessions mount is readable and the
+    # bind-mounted DB stays host-owned. Set these first:
+    #   export UID=$(id -u) GID=$(id -g)
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped

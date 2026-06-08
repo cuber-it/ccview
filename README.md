@@ -15,7 +15,13 @@ A single Go binary (~5 MB). No runtime, no dependencies.
 - **Multiple project roots** scanned together, managed in the Settings dialog
 - **Grouped sidebar** (Active + per-project, collapsible) with resizable width,
   filter, auto-refresh, and per-session rename
-- **Per-session notes**: file-backed Markdown notepad with an EasyMDE editor
+- **Cross-session search**: regex over the current session, all sessions, or all
+  notes — with hit counts and activity days
+- **Done marker** + filter to hide finished sessions; **delete** moves the JSONL
+  to a reversible trash
+- **Per-session notes**: Markdown notepad (EasyMDE), stored in the central DB
+- **Read-only SQL console** over ccview's metadata DB, plus a built-in
+  **slash-command cheatsheet** (press `?`)
 - **Prompt index** in the sidepanel: numbered anchors, filter, hover popup
 - **Favorites** (up to 5) with light-green highlight on new events
 - **Main session** (exclusive) auto-loads on startup regardless of cwd
@@ -70,6 +76,11 @@ go install github.com/cuber-it/ccview/cmd/ccview@latest
 Or download a binary from
 [GitHub Releases](https://github.com/cuber-it/ccview/releases).
 
+To run it as a persistent **service** — **systemd** or **Docker** — see
+**[INSTALL.md](INSTALL.md)**. ccview has no authentication, so bind it to
+`127.0.0.1`. State lives in a small SQLite DB at `~/.claude/ccview/ccview.db`;
+your Claude sessions are only ever read.
+
 ## Build from source
 
 ```bash
@@ -80,7 +91,8 @@ make test           # go test ./...
 make cross          # cross-compile all platforms into dist/
 ```
 
-Tested with Go 1.23.
+Built with Go (see `go.mod`). The SQLite driver is pure Go, so
+`CGO_ENABLED=0` produces a fully static binary.
 
 ## Architecture
 

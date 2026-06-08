@@ -7,6 +7,11 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Docs / Packaging
+
+- **INSTALL.md** handbook (systemd + Docker setup) plus `Dockerfile`,
+  `docker-compose.yml`, `.dockerignore`. README install section points to it.
+
 ### Changed
 
 - **Central SQLite store** (`~/.claude/ccview/ccview.db`, pure-Go driver, honours

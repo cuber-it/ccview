@@ -1,0 +1,10 @@
+.git
+.gitignore
+ccview
+*.test
+docs/
+.claude/
+CLAUDE.md
+README.md
+INSTALL.md
+CHANGELOG.md
