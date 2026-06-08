@@ -105,6 +105,7 @@
   <div class="sidepanel-tabs" id="sidepanelTabs">
     <button data-tab="prompts" class="active" data-i18n="tab_prompts">Prompts</button>
     <button data-tab="sessions" data-i18n="tab_sessions">Sessions</button>
+    <button data-tab="search">Suche</button>
   </div>
   <div id="tabPrompts">
     <div class="panel-head">
@@ -122,6 +123,10 @@
     </div>
     <input class="prompt-filter" id="sessionFilter" placeholder="filtern…">
     <div id="sessionList"><div class="sidepanel-empty" data-i18n="list_loading">lade…</div></div>
+  </div>
+  <div id="tabSearch" style="display:none">
+    <input class="prompt-filter" id="searchAllInput" placeholder="Regex über alle Sessions… (Enter)">
+    <div id="searchAllList"><div class="sidepanel-empty">Suchbegriff eingeben…</div></div>
   </div>
 </aside>
 <div class="sidebar-resize" id="sidebarResize" title="Sidebar ziehen"></div>

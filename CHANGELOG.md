@@ -39,6 +39,9 @@ Versioning follows [SemVer](https://semver.org/).
 - **Collapse/expand all** sidebar groups with one button in the Sessions tab.
 - **Done marker** per session (context menu) plus a filter to hide/show done
   sessions — the basis for later archiving/deletion.
+- **Cross-session search**: a third sidebar tab runs a case-insensitive regex
+  over every session JSONL and lists matching sessions with hit count, activity
+  days, and a snippet — click to open. Reads line by line, handles huge logs.
 - **Built-in cheatsheet** of Claude Code slash commands, opened in its own tab
   with `?` (or the burger menu), linking to the official docs.
 

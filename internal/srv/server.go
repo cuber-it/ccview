@@ -106,6 +106,7 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/roots", s.handleRoots)
 	s.mux.HandleFunc("/api/session-meta", s.handleSessionMeta)
 	s.mux.HandleFunc("/api/groups", s.handleGroups)
+	s.mux.HandleFunc("/api/search", s.handleSearch)
 	return s
 }
 
