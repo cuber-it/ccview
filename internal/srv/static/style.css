@@ -982,3 +982,10 @@ body.hide-done .session-item.session-done { display: none; }
 .search-snippet-row { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; padding: 3px 6px;
   border-bottom: 1px solid var(--border); white-space: pre-wrap; word-break: break-word; opacity: .85; }
 .query-modal-body h2 small { font-size: 11px; color: var(--muted); font-weight: 400; }
+
+/* aktuelle Session-ID oben links (kopierbar als Restore-Befehl) */
+.cur-session { background: none; border: 1px solid var(--border); color: var(--muted); cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, monospace; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
+.cur-session:hover { color: var(--fg); border-color: var(--fg); }
+.cur-session.copied { color: var(--success-fg); border-color: var(--success-fg); }
+.cur-session[hidden] { display: none; }

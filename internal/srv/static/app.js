@@ -1483,6 +1483,27 @@
     statsEl.textContent = `${eventCount} events · ${promptCount} prompts`;
   };
 
+  // current session id, copyable as a restore command line
+  const curSessionEl = document.getElementById("curSession");
+  const updateCurSession = (fullId) => {
+    if (!fullId) { curSessionEl.hidden = true; return; }
+    curSessionEl.hidden = false;
+    curSessionEl.textContent = "⧉ " + fullId.slice(0, 8);
+    curSessionEl.dataset.cmd = "claude --resume " + fullId;
+    curSessionEl.title = "kopiert: claude --resume " + fullId;
+  };
+  curSessionEl.addEventListener("click", () => {
+    const cmd = curSessionEl.dataset.cmd;
+    if (!cmd) return;
+    navigator.clipboard.writeText(cmd);
+    const prev = curSessionEl.textContent;
+    curSessionEl.textContent = "✓ kopiert";
+    curSessionEl.classList.add("copied");
+    setTimeout(() => { curSessionEl.textContent = prev; curSessionEl.classList.remove("copied"); }, 900);
+  });
+  document.addEventListener("ccview:session", (e) => updateCurSession(e.detail));
+  updateCurSession(localStorage.getItem("ccview.lastSession"));
+
   // ---------- auto-scroll-pause ----------
   const jumpLiveBtn = document.getElementById("jumpLive");
   const scrollPauseBtn = document.getElementById("scrollPauseBtn");
