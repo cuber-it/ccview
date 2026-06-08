@@ -15,6 +15,7 @@
     <span class="brand-stats" id="stats"></span>
   </div>
   <div class="toolbar-center">
+    <button class="notes-btn" id="searchToggle" title="Suche (Sessions &amp; Notizen)">🔍 Suche</button>
     <button class="notes-btn" id="notesToggle" title="Notizen zur aktuellen Session">📝 Notizen</button>
   </div>
   <div class="toolbar-right">
@@ -34,6 +35,7 @@
       <button data-action="save-as" data-i18n="menu_save_as">Speichern unter…</button>
       <div class="sep"></div>
       <button data-action="settings" data-i18n="menu_settings">Einstellungen</button>
+      <button data-action="query">DB-Abfrage</button>
       <button data-action="cheatsheet">Cheatsheet</button>
       <button data-action="about" data-i18n="menu_about">Über ccview</button>
     </div>
@@ -77,8 +79,28 @@
     <button class="settings-paths-save" id="settingsPathsSave" data-i18n="settings_paths_save">Pfade übernehmen</button>
     <p class="settings-hint" data-i18n="settings_proj_hint">Projekt-Gruppen in der Sidebar — Anzeigename, Reihenfolge, Sichtbarkeit:</p>
     <div class="settings-projects" id="settingsProjects"></div>
-    <h3 class="settings-sub">Datenbank-Abfrage (read-only SELECT)</h3>
-    <textarea class="settings-paths" id="queryInput" rows="2" spellcheck="false" placeholder="SELECT * FROM session_meta"></textarea>
+    <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
+  </div>
+</div>
+<div class="modal" id="searchModal" hidden>
+  <div class="modal-backdrop" data-modal-close="1"></div>
+  <div class="modal-body search-modal-body">
+    <h2>Suche</h2>
+    <div class="search-scopes" id="searchScopes">
+      <button data-scope="session">Diese Session</button>
+      <button data-scope="all" class="active">Alle Sessions</button>
+      <button data-scope="notes">Alle Notizen</button>
+    </div>
+    <input class="settings-paths" id="searchModalInput" placeholder="Regex… (Enter)" spellcheck="false">
+    <div class="search-results" id="searchModalResults"><div class="sidepanel-empty">Suchbegriff eingeben…</div></div>
+    <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
+  </div>
+</div>
+<div class="modal" id="queryModal" hidden>
+  <div class="modal-backdrop" data-modal-close="1"></div>
+  <div class="modal-body query-modal-body">
+    <h2>Datenbank-Abfrage <small>read-only SELECT</small></h2>
+    <textarea class="settings-paths" id="queryInput" rows="3" spellcheck="false" placeholder="SELECT * FROM session_meta"></textarea>
     <button class="settings-paths-save" id="queryRun">Ausführen</button>
     <div class="query-result" id="queryResult"></div>
     <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
@@ -91,7 +113,7 @@
   <button data-act="save">Speichern</button>
   <div class="ctxsep"></div>
   <button data-act="copy">ID kopieren</button>
-  <button data-act="delete" class="ctx-danger">Löschen…</button>
+  <button data-act="delete" class="ctx-danger">Löschen</button>
 </div>
 <div class="notes-floater" id="notesFloater" hidden>
   <div class="notes-resize" id="notesResize" title="Breite ziehen"></div>
@@ -110,7 +132,6 @@
   <div class="sidepanel-tabs" id="sidepanelTabs">
     <button data-tab="prompts" class="active" data-i18n="tab_prompts">Prompts</button>
     <button data-tab="sessions" data-i18n="tab_sessions">Sessions</button>
-    <button data-tab="search">Suche</button>
   </div>
   <div id="tabPrompts">
     <div class="panel-head">
@@ -128,10 +149,6 @@
     </div>
     <input class="prompt-filter" id="sessionFilter" placeholder="filtern…">
     <div id="sessionList"><div class="sidepanel-empty" data-i18n="list_loading">lade…</div></div>
-  </div>
-  <div id="tabSearch" style="display:none">
-    <input class="prompt-filter" id="searchAllInput" placeholder="Regex über alle Sessions… (Enter)">
-    <div id="searchAllList"><div class="sidepanel-empty">Suchbegriff eingeben…</div></div>
   </div>
 </aside>
 <div class="sidebar-resize" id="sidebarResize" title="Sidebar ziehen"></div>

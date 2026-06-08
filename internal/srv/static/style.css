@@ -970,3 +970,15 @@ body.hide-done .session-item.session-done { display: none; }
   white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 .query-table th { background: var(--panel-bg); position: sticky; top: 0; }
 .query-count { color: var(--muted); font-size: 10px; margin-top: 4px; }
+
+/* Such-Modal + DB-Modal */
+.search-modal-body, .query-modal-body { max-width: 640px; }
+.search-scopes { display: flex; gap: 4px; margin: 10px 0 8px; }
+.search-scopes button { flex: 1; padding: 5px 8px; font-size: 12px; background: var(--panel-bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+.search-scopes button.active { background: var(--border); border-color: var(--prompt-accent); color: var(--strong-color); }
+.search-results { max-height: 52vh; overflow-y: auto; margin-top: 8px; }
+.search-results .session-item { cursor: pointer; }
+.search-snippet-row { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; padding: 3px 6px;
+  border-bottom: 1px solid var(--border); white-space: pre-wrap; word-break: break-word; opacity: .85; }
+.query-modal-body h2 small { font-size: 11px; color: var(--muted); font-weight: 400; }

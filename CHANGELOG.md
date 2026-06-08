@@ -39,12 +39,12 @@ Versioning follows [SemVer](https://semver.org/).
 - **Collapse/expand all** sidebar groups with one button in the Sessions tab.
 - **Done marker** per session (context menu) plus a filter to hide/show done
   sessions — the basis for later archiving/deletion.
-- **Cross-session search**: a third sidebar tab runs a case-insensitive regex
-  over every session JSONL and lists matching sessions with hit count, activity
-  days, and a snippet — click to open. Reads line by line, handles huge logs.
+- **Search modal** (toolbar button, next to Notes): case-insensitive regex over
+  three scopes — current session, all sessions, all notes — with hit count,
+  activity days, and snippets. Reads line by line, handles huge logs.
 - **Delete to trash**: context-menu "Löschen…" moves a session's JSONL to
   `~/.claude/ccview/trash/` (reversible) and drops its DB metadata; confirm first.
-- **Read-only query box** in Settings: run a single SELECT against the metadata DB.
+- **Read-only query box** in its own modal (burger menu): a single SELECT against the metadata DB.
 - **Built-in cheatsheet** of Claude Code slash commands, opened in its own tab
   with `?` (or the burger menu), linking to the official docs.
 

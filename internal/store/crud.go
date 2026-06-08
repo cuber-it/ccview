@@ -68,6 +68,24 @@ func (s *Store) GetNote(sessionID string) (string, error) {
 	return c, err
 }
 
+// AllNotes returns every non-empty note, keyed by session ID.
+func (s *Store) AllNotes() (map[string]string, error) {
+	rows, err := s.db.Query(`SELECT session_id, content FROM notes WHERE content != ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]string)
+	for rows.Next() {
+		var id, content string
+		if err := rows.Scan(&id, &content); err != nil {
+			return nil, err
+		}
+		out[id] = content
+	}
+	return out, rows.Err()
+}
+
 // SetNote upserts a session's note.
 func (s *Store) SetNote(sessionID, content string) error {
 	_, err := s.db.Exec(

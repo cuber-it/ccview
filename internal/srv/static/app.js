@@ -370,6 +370,7 @@
     } catch { queryResult.textContent = "Fehler bei der Abfrage"; }
   };
   document.getElementById("queryRun").addEventListener("click", runQuery);
+  document.getElementById("queryModal").addEventListener("click", (e) => { if (e.target.dataset.modalClose) document.getElementById("queryModal").hidden = true; });
 
   menuItems.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-action]");
@@ -383,6 +384,9 @@
       exportSession(p.trim() || null);
     } else if (btn.dataset.action === "settings") {
       openSettings();
+    } else if (btn.dataset.action === "query") {
+      document.getElementById("queryModal").hidden = false;
+      document.getElementById("queryInput").focus();
     } else if (btn.dataset.action === "cheatsheet") {
       openCheatsheet();
     } else if (btn.dataset.action === "about") {
@@ -519,9 +523,10 @@
   const tabsEl = document.getElementById("sidepanelTabs");
   const tabPrompts = document.getElementById("tabPrompts");
   const tabSessions = document.getElementById("tabSessions");
-  const tabSearch = document.getElementById("tabSearch");
-  const searchAllInput = document.getElementById("searchAllInput");
-  const searchAllList = document.getElementById("searchAllList");
+  const searchModal = document.getElementById("searchModal");
+  const searchModalInput = document.getElementById("searchModalInput");
+  const searchModalResults = document.getElementById("searchModalResults");
+  const searchScopes = document.getElementById("searchScopes");
   const sessionList = document.getElementById("sessionList");
   let sessionsLoaded = false;
 
@@ -894,13 +899,11 @@
     });
     tabPrompts.style.display  = name === "prompts"  ? "" : "none";
     tabSessions.style.display = name === "sessions" ? "" : "none";
-    tabSearch.style.display   = name === "search"   ? "" : "none";
     localStorage.setItem("ccview.tab", name);
     if (name === "sessions") {
       loadSessions(); // refresh every activation
       sessionsLoaded = true;
     }
-    if (name === "search" && searchAllInput) searchAllInput.focus();
   };
   tabsEl.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-tab]");
@@ -909,10 +912,11 @@
   activateTab(localStorage.getItem("ccview.tab") || "prompts");
   restoreLastSession();
 
-  // ---------- global regex search across all sessions ----------
-  const renderSearchHits = (hits, q) => {
-    if (!hits.length) { searchAllList.innerHTML = '<div class="sidepanel-empty">keine Treffer für /' + q + '/</div>'; return; }
-    searchAllList.innerHTML = "";
+  // ---------- search modal: all sessions / this session / all notes ----------
+  let searchScope = "all";
+  const renderHitList = (hits, q) => {
+    searchModalResults.innerHTML = "";
+    if (!hits.length) { searchModalResults.innerHTML = '<div class="sidepanel-empty">keine Treffer für /' + q + '/</div>'; return; }
     hits.forEach(h => {
       const days = h.days || [];
       const span = days.length ? (days[0] === days[days.length - 1] ? days[0] : days[0] + "…" + days[days.length - 1]) : "";
@@ -939,21 +943,51 @@
         sn.textContent = h.snippet;
         item.appendChild(sn);
       }
-      item.addEventListener("click", () => switchSession(h.id));
-      searchAllList.appendChild(item);
+      item.addEventListener("click", () => { switchSession(h.id); searchModal.hidden = true; });
+      searchModalResults.appendChild(item);
     });
   };
-  const runGlobalSearch = async () => {
-    const q = searchAllInput.value.trim();
-    if (!q) { searchAllList.innerHTML = '<div class="sidepanel-empty">Suchbegriff eingeben…</div>'; return; }
-    searchAllList.innerHTML = '<div class="sidepanel-empty">suche…</div>';
-    try {
-      const r = await fetch("/api/search?q=" + encodeURIComponent(q));
-      if (!r.ok) { searchAllList.innerHTML = '<div class="sidepanel-empty">' + (await r.text()).slice(0, 120) + '</div>'; return; }
-      renderSearchHits(await r.json(), q);
-    } catch { searchAllList.innerHTML = '<div class="sidepanel-empty">Fehler bei der Suche</div>'; }
+  const renderSnippetList = (snippets, q) => {
+    searchModalResults.innerHTML = "";
+    if (!snippets.length) { searchModalResults.innerHTML = '<div class="sidepanel-empty">keine Treffer für /' + q + '/</div>'; return; }
+    snippets.forEach(sn => {
+      const div = document.createElement("div");
+      div.className = "search-snippet-row";
+      div.textContent = sn;
+      searchModalResults.appendChild(div);
+    });
   };
-  if (searchAllInput) searchAllInput.addEventListener("keydown", (e) => { if (e.key === "Enter") runGlobalSearch(); });
+  const runSearch = async () => {
+    const q = searchModalInput.value.trim();
+    if (!q) { searchModalResults.innerHTML = '<div class="sidepanel-empty">Suchbegriff eingeben…</div>'; return; }
+    let url = "/api/search?q=" + encodeURIComponent(q) + "&scope=" + searchScope;
+    if (searchScope === "session") {
+      const sid = localStorage.getItem("ccview.lastSession");
+      if (!sid) { searchModalResults.innerHTML = '<div class="sidepanel-empty">keine Session geöffnet</div>'; return; }
+      url += "&session=" + encodeURIComponent(sid);
+    }
+    searchModalResults.innerHTML = '<div class="sidepanel-empty">suche…</div>';
+    try {
+      const r = await fetch(url);
+      if (!r.ok) { searchModalResults.innerHTML = '<div class="sidepanel-empty">' + (await r.text()).slice(0, 120) + '</div>'; return; }
+      const data = await r.json();
+      if (searchScope === "session") renderSnippetList(data.snippets || [], q);
+      else renderHitList(data, q);
+    } catch { searchModalResults.innerHTML = '<div class="sidepanel-empty">Fehler bei der Suche</div>'; }
+  };
+  searchModalInput.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+  searchScopes.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-scope]");
+    if (!b) return;
+    searchScope = b.dataset.scope;
+    searchScopes.querySelectorAll("button").forEach(x => x.classList.toggle("active", x === b));
+    if (searchModalInput.value.trim()) runSearch();
+  });
+  document.getElementById("searchToggle").addEventListener("click", () => {
+    searchModal.hidden = !searchModal.hidden;
+    if (!searchModal.hidden) searchModalInput.focus();
+  });
+  searchModal.addEventListener("click", (e) => { if (e.target.dataset.modalClose) searchModal.hidden = true; });
 
   // ---------- auto-refresh session list ----------
   setInterval(() => {
