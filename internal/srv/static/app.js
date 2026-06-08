@@ -68,6 +68,45 @@
       rel_now: "jetzt",
       copy_tooltip: "Inhalt in Zwischenablage kopieren",
       list_error: "Fehler: ${err}",
+      ctx_fav: "Favorit",
+      ctx_rename: "Umbenennen",
+      ctx_hide: "Ausblenden",
+      ctx_show: "Einblenden",
+      ctx_copy: "ID kopieren",
+      ctx_delete: "Löschen",
+      search_btn: "🔍 Suche",
+      search_btn_t: "Suche (Sessions & Notizen)",
+      notes_btn: "📝 Notizen",
+      notes_btn_t: "Notizen zur aktuellen Session",
+      menu_query: "DB-Abfrage",
+      menu_cheatsheet: "Cheatsheet",
+      search_title: "Suche",
+      search_scope_session: "Diese Session",
+      search_scope_all: "Alle Sessions",
+      search_scope_notes: "Alle Notizen",
+      search_ph: "Regex… (Enter)",
+      search_enter: "Suchbegriff eingeben…",
+      search_running: "suche…",
+      search_none: "keine Treffer für /${q}/",
+      search_nosession: "keine Session geöffnet",
+      search_failed: "Fehler bei der Suche",
+      query_title: "Datenbank-Abfrage",
+      query_sub: "read-only SELECT",
+      query_run: "Ausführen",
+      query_rows: "${n} Zeilen",
+      query_failed: "Fehler bei der Abfrage",
+      notes_title: "Notizen",
+      notes_ph: "Notizen zu dieser Session…",
+      notes_save_t: "In Datei speichern (Strg+S)",
+      notes_pin_t: "Rechts andocken",
+      collapse_all_t: "Alle Gruppen ein-/ausklappen",
+      hide_done_t: "Erledigte aus-/einblenden",
+      reorder_up_t: "höher stufen",
+      reorder_down_t: "tiefer stufen",
+      rename_prompt: "Name für diese Session (leer = zurücksetzen):",
+      delete_confirm: "Session „${label}“ löschen?\nDie .jsonl wandert in ~/.claude/ccview/trash/ (umkehrbar).",
+      fav_unpin_t: "Entfernen",
+      cursession_copied: "✓ kopiert",
     },
     en: {
       status_connecting: "connecting…",
@@ -136,6 +175,45 @@
       rel_now: "now",
       copy_tooltip: "Copy to clipboard",
       list_error: "Error: ${err}",
+      ctx_fav: "Favorite",
+      ctx_rename: "Rename",
+      ctx_hide: "Hide",
+      ctx_show: "Show",
+      ctx_copy: "Copy ID",
+      ctx_delete: "Delete",
+      search_btn: "🔍 Search",
+      search_btn_t: "Search (sessions & notes)",
+      notes_btn: "📝 Notes",
+      notes_btn_t: "Notes for the current session",
+      menu_query: "DB query",
+      menu_cheatsheet: "Cheatsheet",
+      search_title: "Search",
+      search_scope_session: "This session",
+      search_scope_all: "All sessions",
+      search_scope_notes: "All notes",
+      search_ph: "Regex… (Enter)",
+      search_enter: "Enter a search term…",
+      search_running: "searching…",
+      search_none: "no matches for /${q}/",
+      search_nosession: "no session open",
+      search_failed: "search failed",
+      query_title: "Database query",
+      query_sub: "read-only SELECT",
+      query_run: "Run",
+      query_rows: "${n} rows",
+      query_failed: "query failed",
+      notes_title: "Notes",
+      notes_ph: "Notes for this session…",
+      notes_save_t: "Save to file (Ctrl+S)",
+      notes_pin_t: "Pin right",
+      collapse_all_t: "Collapse/expand all groups",
+      hide_done_t: "Hide/show done",
+      reorder_up_t: "Move up",
+      reorder_down_t: "Move down",
+      rename_prompt: "Name for this session (blank = clear):",
+      delete_confirm: "Delete session “${label}”?\nThe .jsonl moves to ~/.claude/ccview/trash/ (reversible).",
+      fav_unpin_t: "Remove",
+      cursession_copied: "✓ copied",
     },
   };
 
@@ -356,7 +434,7 @@
       tbody.appendChild(tr);
     });
     table.appendChild(tbody); queryResult.appendChild(table);
-    const cnt = document.createElement("div"); cnt.className = "query-count"; cnt.textContent = rows.length + " Zeilen"; queryResult.appendChild(cnt);
+    const cnt = document.createElement("div"); cnt.className = "query-count"; cnt.textContent = t("query_rows", { n: rows.length }); queryResult.appendChild(cnt);
   };
   const runQuery = async () => {
     const sql = (queryInput.value || "").trim();
@@ -367,7 +445,7 @@
       if (!r.ok) { queryResult.textContent = (await r.text()).slice(0, 200); return; }
       const d = await r.json();
       renderQueryTable(d.columns || [], d.rows || []);
-    } catch { queryResult.textContent = "Fehler bei der Abfrage"; }
+    } catch { queryResult.textContent = t("query_failed"); }
   };
   document.getElementById("queryRun").addEventListener("click", runQuery);
   document.getElementById("queryModal").addEventListener("click", (e) => { if (e.target.dataset.modalClose) document.getElementById("queryModal").hidden = true; });
@@ -458,7 +536,7 @@
       const unpin = document.createElement("button");
       unpin.className = "fav-unpin";
       unpin.textContent = "×";
-      unpin.title = "Entfernen";
+      unpin.title = t("fav_unpin_t");
       unpin.addEventListener("click", (e) => {
         e.stopPropagation();
         saveFavs(loadFavs().filter(f => f.id !== fav.id));
@@ -857,10 +935,10 @@
           const reorder = document.createElement("div");
           reorder.className = "session-reorder";
           const up = document.createElement("button");
-          up.className = "reorder-btn"; up.textContent = "▲"; up.title = "höher stufen";
+          up.className = "reorder-btn"; up.textContent = "▲"; up.title = t("reorder_up_t");
           up.addEventListener("click", (e) => { e.stopPropagation(); moveActive(s.id, -1); });
           const down = document.createElement("button");
-          down.className = "reorder-btn"; down.textContent = "▼"; down.title = "tiefer stufen";
+          down.className = "reorder-btn"; down.textContent = "▼"; down.title = t("reorder_down_t");
           down.addEventListener("click", (e) => { e.stopPropagation(); moveActive(s.id, 1); });
           reorder.append(up, down);
           item.appendChild(reorder);
@@ -886,7 +964,7 @@
   let ctxSession = null;
   const ctxDoneBtn = ctxMenu.querySelector('button[data-act="done"]');
   const updateCtxDoneLabel = () => {
-    if (ctxDoneBtn && ctxSession) ctxDoneBtn.textContent = ctxSession.done ? "Einblenden" : "Ausblenden";
+    if (ctxDoneBtn && ctxSession) ctxDoneBtn.textContent = ctxSession.done ? t("ctx_show") : t("ctx_hide");
   };
   const setSessionName = async (id, name) => {
     await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -912,7 +990,7 @@
     if (!b || !ctxSession) return;
     const s = ctxSession;
     if (b.dataset.act === "rename") {
-      const name = prompt("Name für diese Session (leer = zurücksetzen):", s.name || "");
+      const name = prompt(t("rename_prompt"), s.name || "");
       if (name !== null) { setSessionName(s.id, name.trim()).then(loadSessions); }
     } else if (b.dataset.act === "done") {
       setSessionDone(s.id, !s.done).then(loadSessions);
@@ -926,7 +1004,7 @@
       exportSession(p.trim() || null, s.id);
     } else if (b.dataset.act === "delete") {
       const label = s.name || s.short_id || s.id;
-      if (confirm('Session „' + label + '" löschen?\nDie .jsonl wandert in ~/.claude/ccview/trash/ (umkehrbar).')) {
+      if (confirm(t("delete_confirm", { label }))) {
         fetch("/api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: s.id }) })
           .then(r => { if (r.ok) loadSessions(); });
       }
@@ -965,7 +1043,7 @@
   let searchScope = "all";
   const renderHitList = (hits, q) => {
     searchModalResults.innerHTML = "";
-    if (!hits.length) { searchModalResults.innerHTML = '<div class="sidepanel-empty">keine Treffer für /' + q + '/</div>'; return; }
+    if (!hits.length) { searchModalResults.innerHTML = '<div class="sidepanel-empty">' + t("search_none", { q }) + '</div>'; return; }
     hits.forEach(h => {
       const days = h.days || [];
       const span = days.length ? (days[0] === days[days.length - 1] ? days[0] : days[0] + "…" + days[days.length - 1]) : "";
@@ -998,7 +1076,7 @@
   };
   const renderSnippetList = (snippets, q) => {
     searchModalResults.innerHTML = "";
-    if (!snippets.length) { searchModalResults.innerHTML = '<div class="sidepanel-empty">keine Treffer für /' + q + '/</div>'; return; }
+    if (!snippets.length) { searchModalResults.innerHTML = '<div class="sidepanel-empty">' + t("search_none", { q }) + '</div>'; return; }
     snippets.forEach(sn => {
       const div = document.createElement("div");
       div.className = "search-snippet-row";
@@ -1008,21 +1086,21 @@
   };
   const runSearch = async () => {
     const q = searchModalInput.value.trim();
-    if (!q) { searchModalResults.innerHTML = '<div class="sidepanel-empty">Suchbegriff eingeben…</div>'; return; }
+    if (!q) { searchModalResults.innerHTML = '<div class="sidepanel-empty">' + t("search_enter") + '</div>'; return; }
     let url = "/api/search?q=" + encodeURIComponent(q) + "&scope=" + searchScope;
     if (searchScope === "session") {
       const sid = localStorage.getItem("ccview.lastSession");
-      if (!sid) { searchModalResults.innerHTML = '<div class="sidepanel-empty">keine Session geöffnet</div>'; return; }
+      if (!sid) { searchModalResults.innerHTML = '<div class="sidepanel-empty">' + t("search_nosession") + '</div>'; return; }
       url += "&session=" + encodeURIComponent(sid);
     }
-    searchModalResults.innerHTML = '<div class="sidepanel-empty">suche…</div>';
+    searchModalResults.innerHTML = '<div class="sidepanel-empty">' + t("search_running") + '</div>';
     try {
       const r = await fetch(url);
       if (!r.ok) { searchModalResults.innerHTML = '<div class="sidepanel-empty">' + (await r.text()).slice(0, 120) + '</div>'; return; }
       const data = await r.json();
       if (searchScope === "session") renderSnippetList(data.snippets || [], q);
       else renderHitList(data, q);
-    } catch { searchModalResults.innerHTML = '<div class="sidepanel-empty">Fehler bei der Suche</div>'; }
+    } catch { searchModalResults.innerHTML = '<div class="sidepanel-empty">' + t("search_failed") + '</div>'; }
   };
   searchModalInput.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
   searchScopes.addEventListener("click", (e) => {
@@ -1546,7 +1624,7 @@
     if (!cmd) return;
     navigator.clipboard.writeText(cmd);
     const prev = curSessionEl.textContent;
-    curSessionEl.textContent = "✓ kopiert";
+    curSessionEl.textContent = t("cursession_copied");
     curSessionEl.classList.add("copied");
     setTimeout(() => { curSessionEl.textContent = prev; curSessionEl.classList.remove("copied"); }, 900);
   });
@@ -1786,7 +1864,7 @@
       "|", "link", "table", "|", "preview", "side-by-side", "fullscreen", "|", "undo", "redo"],
   });
   let sessionId = null;
-  const shortTitle = () => sessionId ? "Notizen · " + sessionId.slice(0, 8) : "Notizen";
+  const shortTitle = () => sessionId ? t("notes_title") + " · " + sessionId.slice(0, 8) : t("notes_title");
   const load = async () => {
     sessionId = localStorage.getItem("ccview.lastSession");
     titleEl.textContent = shortTitle();

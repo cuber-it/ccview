@@ -16,8 +16,8 @@
     <button class="cur-session" id="curSession" hidden></button>
   </div>
   <div class="toolbar-center">
-    <button class="notes-btn" id="searchToggle" title="Suche (Sessions &amp; Notizen)">🔍 Suche</button>
-    <button class="notes-btn" id="notesToggle" title="Notizen zur aktuellen Session">📝 Notizen</button>
+    <button class="notes-btn" id="searchToggle" data-i18n="search_btn" data-i18n-title="search_btn_t" title="Suche (Sessions &amp; Notizen)">🔍 Suche</button>
+    <button class="notes-btn" id="notesToggle" data-i18n="notes_btn" data-i18n-title="notes_btn_t" title="Notizen zur aktuellen Session">📝 Notizen</button>
   </div>
   <div class="toolbar-right">
     <div class="theme-switch" id="langSwitch">
@@ -36,8 +36,8 @@
       <button data-action="save-as" data-i18n="menu_save_as">Speichern unter…</button>
       <div class="sep"></div>
       <button data-action="settings" data-i18n="menu_settings">Einstellungen</button>
-      <button data-action="query">DB-Abfrage</button>
-      <button data-action="cheatsheet">Cheatsheet</button>
+      <button data-action="query" data-i18n="menu_query">DB-Abfrage</button>
+      <button data-action="cheatsheet" data-i18n="menu_cheatsheet">Cheatsheet</button>
       <button data-action="about" data-i18n="menu_about">Über ccview</button>
     </div>
   </div>
@@ -86,25 +86,25 @@
 <div class="modal" id="searchModal" hidden>
   <div class="modal-backdrop" data-modal-close="1"></div>
   <div class="modal-body search-modal-body">
-    <h2>Suche</h2>
+    <h2 data-i18n="search_title">Suche</h2>
     <div class="search-scopes" id="searchScopes">
-      <button data-scope="session">Diese Session</button>
-      <button data-scope="all" class="active">Alle Sessions</button>
-      <button data-scope="notes">Alle Notizen</button>
+      <button data-scope="session" data-i18n="search_scope_session">Diese Session</button>
+      <button data-scope="all" class="active" data-i18n="search_scope_all">Alle Sessions</button>
+      <button data-scope="notes" data-i18n="search_scope_notes">Alle Notizen</button>
     </div>
-    <input class="settings-paths" id="searchModalInput" placeholder="Regex… (Enter)" spellcheck="false">
-    <div class="search-results" id="searchModalResults"><div class="sidepanel-empty">Suchbegriff eingeben…</div></div>
+    <input class="settings-paths" id="searchModalInput" data-i18n-placeholder="search_ph" placeholder="Regex… (Enter)" spellcheck="false">
+    <div class="search-results" id="searchModalResults"><div class="sidepanel-empty" data-i18n="search_enter">Suchbegriff eingeben…</div></div>
     <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>
   </div>
 </div>
 <div class="modal" id="queryModal" hidden>
   <div class="modal-backdrop" data-modal-close="1"></div>
   <div class="modal-body query-modal-body">
-    <h2>Datenbank-Abfrage <small>read-only SELECT</small></h2>
+    <h2><span data-i18n="query_title">Datenbank-Abfrage</span> <small data-i18n="query_sub">read-only SELECT</small></h2>
     <div class="query-layout">
       <div class="query-main">
         <textarea class="settings-paths" id="queryInput" rows="3" spellcheck="false" placeholder="SELECT * FROM session_meta"></textarea>
-        <button class="settings-paths-save" id="queryRun">Ausführen</button>
+        <button class="settings-paths-save" id="queryRun" data-i18n="query_run">Ausführen</button>
         <div class="query-result" id="queryResult"></div>
       </div>
       <div class="query-schema" id="querySchema"></div>
@@ -113,25 +113,25 @@
   </div>
 </div>
 <div class="ctxmenu" id="sessionCtx" hidden>
-  <button data-act="fav">Favorit</button>
-  <button data-act="rename">Umbenennen</button>
+  <button data-act="fav" data-i18n="ctx_fav">Favorit</button>
+  <button data-act="rename" data-i18n="ctx_rename">Umbenennen</button>
   <button data-act="done">Schließen</button>
-  <button data-act="save">Speichern</button>
+  <button data-act="save" data-i18n="menu_save">Speichern</button>
   <div class="ctxsep"></div>
-  <button data-act="copy">ID kopieren</button>
-  <button data-act="delete" class="ctx-danger">Löschen</button>
+  <button data-act="copy" data-i18n="ctx_copy">ID kopieren</button>
+  <button data-act="delete" class="ctx-danger" data-i18n="ctx_delete">Löschen</button>
 </div>
 <div class="notes-floater" id="notesFloater" hidden>
   <div class="notes-resize" id="notesResize" title="Breite ziehen"></div>
   <div class="notes-head" id="notesHead">
-    <span class="notes-title" id="notesTitle">Notizen</span>
+    <span class="notes-title" id="notesTitle" data-i18n="notes_title">Notizen</span>
     <div class="notes-tools">
-      <button id="notesSave" title="In Datei speichern (Strg+S)">💾</button>
-      <button id="notesPin" title="Rechts andocken">📌</button>
-      <button id="notesClose" title="Schließen">✕</button>
+      <button id="notesSave" data-i18n-title="notes_save_t" title="In Datei speichern (Strg+S)">💾</button>
+      <button id="notesPin" data-i18n-title="notes_pin_t" title="Rechts andocken">📌</button>
+      <button id="notesClose" data-i18n-title="close" title="Schließen">✕</button>
     </div>
   </div>
-  <textarea id="notesText" placeholder="Notizen zu dieser Session…"></textarea>
+  <textarea id="notesText" data-i18n-placeholder="notes_ph" placeholder="Notizen zu dieser Session…"></textarea>
 </div>
 <aside class="sidepanel">
   <button class="sidepanel-toggle" id="panelToggle" data-i18n-title="sidepanel_toggle" title="Panel ein-/ausklappen">«</button>
@@ -150,10 +150,10 @@
   <div id="tabSessions" style="display:none">
     <div class="panel-head">
       <h2 data-i18n="tab_sessions">Sessions</h2>
-      <button class="sort-toggle" id="sessionHideDone" title="Erledigte aus-/einblenden" aria-label="toggle done">✓</button>
-      <button class="sort-toggle" id="sessionCollapseAll" title="Alle Gruppen ein-/ausklappen" aria-label="collapse all">⊟</button>
+      <button class="sort-toggle" id="sessionHideDone" data-i18n-title="hide_done_t" title="Erledigte aus-/einblenden" aria-label="toggle done">✓</button>
+      <button class="sort-toggle" id="sessionCollapseAll" data-i18n-title="collapse_all_t" title="Alle Gruppen ein-/ausklappen" aria-label="collapse all">⊟</button>
     </div>
-    <input class="prompt-filter" id="sessionFilter" placeholder="filtern…">
+    <input class="prompt-filter" id="sessionFilter" data-i18n-placeholder="prompt_filter" placeholder="filtern…">
     <div id="sessionList"><div class="sidepanel-empty" data-i18n="list_loading">lade…</div></div>
   </div>
 </aside>
