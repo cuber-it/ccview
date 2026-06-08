@@ -770,6 +770,7 @@
           e.stopPropagation();
           if (!ctxMenu.hidden && ctxSession && ctxSession.id === s.id) { closeCtx(); return; }
           ctxSession = s;
+          updateCtxDoneLabel();
           const rb = burger.getBoundingClientRect();
           ctxMenu.style.left = Math.max(8, Math.min(rb.right - 168, window.innerWidth - 180)) + "px";
           ctxMenu.style.top = Math.min(rb.bottom + 2, window.innerHeight - 170) + "px";
@@ -795,6 +796,10 @@
   // ---------- session context menu (rename / copy id / pin / favorite) ----------
   const ctxMenu = document.getElementById("sessionCtx");
   let ctxSession = null;
+  const ctxDoneBtn = ctxMenu.querySelector('button[data-act="done"]');
+  const updateCtxDoneLabel = () => {
+    if (ctxDoneBtn && ctxSession) ctxDoneBtn.textContent = ctxSession.done ? "Öffnen" : "Schließen";
+  };
   const setSessionName = async (id, name) => {
     await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session: id, name }) });
@@ -809,6 +814,7 @@
     if (!item || !item.dataset.fullId) return;
     e.preventDefault();
     ctxSession = (lastSessionsData || []).find(s => s.id === item.dataset.fullId) || { id: item.dataset.fullId };
+    updateCtxDoneLabel();
     ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 180) + "px";
     ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 170) + "px";
     ctxMenu.hidden = false;
