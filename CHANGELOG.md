@@ -7,6 +7,8 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-09
+
 ### Added
 
 - **Notes Markdown preview toggle** (👁 / ✎ in the notes toolbar): switches the
@@ -225,6 +227,8 @@ runtime session switching, favorites, and markdown export.
 - No config file — everything is either a CLI flag or `localStorage`
   (theme, language, sidepanel state, favorites, main session, last session, tab)
 
-[Unreleased]: https://github.com/cuber-it/ccview/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/cuber-it/ccview/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/cuber-it/ccview/releases/tag/v0.3.1
+[0.3.0]: https://github.com/cuber-it/ccview/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cuber-it/ccview/releases/tag/v0.2.0
 [0.1.0]: https://github.com/cuber-it/ccview/releases/tag/v0.1.0
