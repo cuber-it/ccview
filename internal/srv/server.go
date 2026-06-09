@@ -50,6 +50,17 @@ type Server struct {
 	currentID  string
 	pumpCancel context.CancelFunc
 	rootCtx    context.Context
+
+	// in-memory transcript cache (no filesystem); invalidated by file modTime.
+	transcriptMu    sync.Mutex
+	transcriptCache map[string]transcriptEntry
+}
+
+// transcriptEntry is a rendered HTML transcript kept in memory; modTime is the
+// session file's modification time when it was rendered, used to invalidate.
+type transcriptEntry struct {
+	html    string
+	modTime time.Time
 }
 
 // noCache disables browser caching so a reload always fetches the latest
@@ -78,14 +89,15 @@ func New(cfg Config) *Server {
 		roots = []string{cfg.ProjectsRoot}
 	}
 	s := &Server{
-		mux:          http.NewServeMux(),
-		hub:          newHub(),
-		store:        st,
-		projectsRoot: cfg.ProjectsRoot,
-		roots:        roots,
-		projectDir:   cfg.ProjectDir,
-		version:      cfg.Version,
-		verbose:      cfg.Verbose,
+		mux:             http.NewServeMux(),
+		hub:             newHub(),
+		store:           st,
+		projectsRoot:    cfg.ProjectsRoot,
+		roots:           roots,
+		projectDir:      cfg.ProjectDir,
+		version:         cfg.Version,
+		verbose:         cfg.Verbose,
+		transcriptCache: map[string]transcriptEntry{},
 	}
 	// Frontend: embedded by default. CCVIEW_DEV=<dir> serves static from disk
 	// for live editing — change a file, reload the browser, no rebuild needed.
@@ -114,6 +126,8 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/query", s.handleQuery)
 	s.mux.HandleFunc("/api/schema", s.handleSchema)
 	s.mux.HandleFunc("/api/history", s.handleHistory)
+	s.mux.HandleFunc("/api/config", s.handleConfig)
+	s.mux.HandleFunc("/api/transcript", s.handleTranscript)
 	return s
 }
 
@@ -711,6 +725,95 @@ func writeMarkdownExport(target string, meta export.Meta, events []parse.Event) 
 }
 
 // ---- helpers ----
+
+// handleTranscript renders a full session as a standalone HTML document, served
+// inline for opening in a new browser tab. The browser lays out the whole
+// session in one native pass — fast and Ctrl-F-searchable even for huge
+// sessions that would freeze the incremental live viewer.
+func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
+	sess := r.URL.Query().Get("session")
+	if sess == "" {
+		http.Error(w, "missing session", http.StatusBadRequest)
+		return
+	}
+	info, ok := s.findSession(sess)
+	if !ok {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	// Serve from the in-memory cache when the session file is unchanged.
+	s.transcriptMu.Lock()
+	if e, hit := s.transcriptCache[sess]; hit && e.modTime.Equal(info.ModTime) {
+		cached := e.html
+		s.transcriptMu.Unlock()
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, cached)
+		return
+	}
+	s.transcriptMu.Unlock()
+
+	events, err := parseSessionFile(info.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out := export.HTML(export.Meta{
+		SessionID:   sess,
+		ProjectPath: info.Project,
+		Started:     info.FirstEventTime,
+		Exported:    time.Now(),
+	}, events)
+
+	s.transcriptMu.Lock()
+	if len(s.transcriptCache) >= 8 {
+		s.transcriptCache = map[string]transcriptEntry{} // crude bounded eviction; it's a cache
+	}
+	s.transcriptCache[sess] = transcriptEntry{html: out, modTime: info.ModTime}
+	s.transcriptMu.Unlock()
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, out)
+}
+
+// handleConfig is a generic server-side key-value store for UI preferences that
+// must persist across browsers and reloads (e.g. the "hide done" filter).
+// GET ?key=X -> {"value": ...} (null if unset); POST {"key","value"}.
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		key := r.URL.Query().Get("key")
+		if key == "" {
+			http.Error(w, "missing key", http.StatusBadRequest)
+			return
+		}
+		v, ok, err := s.store.GetConfig(key)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			writeJSON(w, map[string]any{"value": nil})
+			return
+		}
+		writeJSON(w, map[string]any{"value": v})
+	case http.MethodPost:
+		var body struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Key == "" {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if err := s.store.SetConfig(body.Key, body.Value); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
 
 // atoiDefault parses s as an int, returning def when it is empty or invalid.
 func atoiDefault(s string, def int) int {

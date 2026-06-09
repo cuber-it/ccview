@@ -50,6 +50,14 @@ Versioning follows [SemVer](https://semver.org/).
 
 ### Added
 
+- **HTML transcript** per session (context menu → "HTML-Transkript"): renders the
+  full session as a standalone HTML document and opens it in a new tab. The
+  browser lays it out natively in one pass — fast and Ctrl-F-searchable even for
+  huge sessions that freeze the live viewer. Cached in memory (invalidated by
+  file modTime), never written to disk.
+- **Generic config store** (`/api/config`, `config` table): the "hide done"
+  filter now persists server-side in the DB instead of browser localStorage, so
+  it survives across browsers/profiles (legacy localStorage value migrated once).
 - **Multiple project roots**: scan several Claude projects directories at
   once. Manage the list in Settings → "Projekt-Pfade" (stored in the central
   SQLite DB; `~` expanded, duplicates dropped). New

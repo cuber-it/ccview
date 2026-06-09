@@ -71,6 +71,7 @@
       list_error: "Fehler: ${err}",
       ctx_fav: "Favorit",
       ctx_rename: "Umbenennen",
+      ctx_transcript: "HTML-Transkript",
       ctx_hide: "Ausblenden",
       ctx_show: "Einblenden",
       ctx_copy: "ID kopieren",
@@ -197,6 +198,7 @@
       list_error: "Error: ${err}",
       ctx_fav: "Favorite",
       ctx_rename: "Rename",
+      ctx_transcript: "HTML transcript",
       ctx_hide: "Hide",
       ctx_show: "Show",
       ctx_copy: "Copy ID",
@@ -872,14 +874,29 @@
   });
 
   const hideDoneBtn = document.getElementById("sessionHideDone");
+  let hideDone = false;
   const applyHideDone = () => {
-    const hide = localStorage.getItem("ccview-hide-done") === "1";
-    document.body.classList.toggle("hide-done", hide);
-    if (hideDoneBtn) hideDoneBtn.classList.toggle("active", hide);
+    document.body.classList.toggle("hide-done", hideDone);
+    if (hideDoneBtn) hideDoneBtn.classList.toggle("active", hideDone);
   };
+  const saveHideDone = () => {
+    fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "hide-done", value: hideDone ? "1" : "0" }) }).catch(() => {});
+  };
+  // Persist the filter in the DB so it survives across browsers/profiles.
+  // Migrate the legacy localStorage value once, then drop it.
+  (async () => {
+    try {
+      const d = await (await fetch("/api/config?key=hide-done")).json();
+      if (d.value === "1" || d.value === "0") hideDone = d.value === "1";
+      else if (localStorage.getItem("ccview-hide-done") === "1") { hideDone = true; saveHideDone(); }
+    } catch { /* keep default */ }
+    localStorage.removeItem("ccview-hide-done");
+    applyHideDone();
+  })();
   if (hideDoneBtn) hideDoneBtn.addEventListener("click", () => {
-    const hide = localStorage.getItem("ccview-hide-done") === "1";
-    localStorage.setItem("ccview-hide-done", hide ? "0" : "1");
+    hideDone = !hideDone;
+    saveHideDone();
     applyHideDone();
   });
   applyHideDone();
@@ -1034,6 +1051,8 @@
       if (name !== null) { setSessionName(s.id, name.trim()).then(loadSessions); }
     } else if (b.dataset.act === "done") {
       setSessionDone(s.id, !s.done).then(loadSessions);
+    } else if (b.dataset.act === "transcript") {
+      window.open("/api/transcript?session=" + encodeURIComponent(s.id), "_blank");
     } else if (b.dataset.act === "copy") {
       navigator.clipboard.writeText(s.id);
     } else if (b.dataset.act === "fav") {
