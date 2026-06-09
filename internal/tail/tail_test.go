@@ -32,6 +32,16 @@ func TestTailer_Live(t *testing.T) {
 		t.Fatal("no initial line")
 	}
 
+	// EOF after the existing content yields the one-off history→live marker.
+	select {
+	case l := <-ch:
+		if !l.Live {
+			t.Fatalf("expected live marker, got %+v", l)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no live marker")
+	}
+
 	appendTo(t, path, "live1\nlive2\n")
 	got := collect(ch, 2, time.Second)
 	assertLines(t, got, []string{"live1", "live2"})
@@ -43,9 +53,13 @@ func TestTailer_PartialLineCompleted(t *testing.T) {
 	defer cancel()
 	ch := New(path).WithInterval(10 * time.Millisecond).Stream(ctx)
 
+	// A live marker at EOF is fine, but no data line may appear before the
+	// newline completes the partial line.
 	select {
 	case l := <-ch:
-		t.Fatalf("unexpected line before newline: %+v", l)
+		if !l.Live {
+			t.Fatalf("unexpected data line before newline: %+v", l)
+		}
 	case <-time.After(50 * time.Millisecond):
 	}
 

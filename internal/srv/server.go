@@ -189,6 +189,8 @@ func (s *Server) SetSession(info session.Info) error {
 }
 
 func (s *Server) pump(ctx context.Context, path string) {
+	var hist []parse.Event // accumulated history, not streamed to clients
+	live := false
 	for line := range tail.New(path).Stream(ctx) {
 		if line.Err != nil {
 			if s.verbose {
@@ -196,11 +198,24 @@ func (s *Server) pump(ctx context.Context, path string) {
 			}
 			return
 		}
+		if line.Live {
+			// History fully read: install it and push only the capped tail to
+			// clients. Older events load on demand via /api/history — this is
+			// what keeps switching into a huge session from freezing the browser.
+			live = true
+			s.hub.Switch(hist, replayCap)
+			hist = nil
+			continue
+		}
 		ev, err := parse.Parse(line.Data)
 		if err != nil {
 			continue
 		}
-		s.hub.Publish(ev)
+		if live {
+			s.hub.Publish(ev) // live: append to history + fan out to clients
+		} else {
+			hist = append(hist, ev)
+		}
 	}
 }
 

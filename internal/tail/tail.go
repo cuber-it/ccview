@@ -12,10 +12,13 @@ import (
 
 // Line is one extracted line from the tailed file. Data has any trailing
 // \n/\r stripped. Err, if set, is terminal — the Stream channel closes
-// after it.
+// after it. Live is set on a single marker line (no Data) emitted once the
+// pre-existing content has all been delivered and the tailer switches to
+// following appended lines — i.e. the history→live boundary.
 type Line struct {
 	Data []byte
 	Err  error
+	Live bool
 }
 
 // Tailer follows a file and streams its lines.
@@ -57,6 +60,7 @@ func (t *Tailer) run(ctx context.Context, out chan<- Line) {
 
 	readbuf := make([]byte, 32*1024)
 	var carry []byte // partial line held across reads
+	liveSent := false
 
 	for {
 		n, err := f.Read(readbuf)
@@ -89,6 +93,13 @@ func (t *Tailer) run(ctx context.Context, out chan<- Line) {
 		if err != io.EOF {
 			send(ctx, out, Line{Err: err})
 			return
+		}
+		// First EOF: all pre-existing content delivered — announce live.
+		if !liveSent {
+			liveSent = true
+			if !send(ctx, out, Line{Live: true}) {
+				return
+			}
 		}
 		select {
 		case <-ctx.Done():

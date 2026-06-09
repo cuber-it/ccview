@@ -56,6 +56,9 @@ func (s *sseWriter) writeEvent(ev parse.Event) bool {
 	if ev.Kind == kindReset {
 		return s.writeRaw("event: reset\ndata: {}\n\n")
 	}
+	if ev.Kind == kindMeta {
+		return s.writeRaw("event: meta\ndata: " + string(ev.Raw) + "\n\n")
+	}
 	data, err := json.Marshal(ev)
 	if err != nil {
 		return true
