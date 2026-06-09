@@ -930,6 +930,7 @@
         item.dataset.popupTitle = s.short_id + (s.current ? " · " + t("session_current_badge") : "");
         item.dataset.popupBody = norm || t("session_no_prompt_tooltip");
         item.dataset.popupMeta = (s.project_label || "") + (s.first_event ? " · start " + formatRelative(s.first_event) : "");
+        item.dataset.popupPath = s.project_path || "";
         item.dataset.popupCmd = `ccview -s ${s.short_id}`;
 
         const id = document.createElement("div");
@@ -1652,10 +1653,11 @@
   // ---------- hover popup ----------
   const popup = document.createElement("div");
   popup.className = "popup";
-  popup.innerHTML = '<div class="popup-meta"><span class="popup-title"></span><span class="popup-extra"></span></div><div class="popup-body"></div><div class="popup-cmd" style="display:none"></div>';
+  popup.innerHTML = '<div class="popup-meta"><span class="popup-title"></span><span class="popup-extra"></span></div><div class="popup-path"></div><div class="popup-body"></div><div class="popup-cmd" style="display:none"></div>';
   document.body.appendChild(popup);
   const popupTitle = popup.querySelector(".popup-title");
   const popupExtra = popup.querySelector(".popup-extra");
+  const popupPath  = popup.querySelector(".popup-path");
   const popupBody  = popup.querySelector(".popup-body");
   const popupCmd   = popup.querySelector(".popup-cmd");
 
@@ -1664,9 +1666,12 @@
     const title = el.dataset.popupTitle || "";
     const body  = el.dataset.popupBody  || "";
     const meta  = el.dataset.popupMeta  || "";
+    const path  = el.dataset.popupPath  || "";
     const cmd   = el.dataset.popupCmd   || "";
     popupTitle.textContent = title;
     popupExtra.textContent = meta;
+    popupPath.textContent = path;
+    popupPath.style.display = path ? "" : "none";
     popupBody.textContent  = body.length > 600 ? body.slice(0, 600) + " …" : body;
     if (cmd) { popupCmd.textContent = cmd; popupCmd.style.display = ""; }
     else     { popupCmd.style.display = "none"; }

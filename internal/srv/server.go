@@ -284,6 +284,7 @@ type sessionDTO struct {
 	ShortID      string    `json:"short_id"`
 	Project      string    `json:"project"`
 	ProjectLabel string    `json:"project_label"`
+	ProjectPath  string    `json:"project_path,omitempty"`
 	FirstEvent   time.Time `json:"first_event,omitempty"`
 	LastEvent    time.Time `json:"last_event,omitempty"`
 	Size         int64     `json:"size"`
@@ -319,6 +320,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
 			ShortID:      short,
 			Project:      si.Project,
 			ProjectLabel: projectLabel(si.Project),
+			ProjectPath:  decodeProjectDir(si.Project),
 			FirstEvent:   si.FirstEventTime,
 			LastEvent:    si.LastEventTime,
 			Size:         si.Size,
@@ -882,14 +884,43 @@ func defaultFilename(dir, sessionID, projectDir string, started time.Time) strin
 	return filepath.Join(dir, name)
 }
 
-func projectLabel(raw string) string {
-	path := strings.ReplaceAll(raw, "-", "/")
-	parts := strings.Split(path, "/")
-	if len(parts) <= 3 {
-		return path
+var (
+	projResolveMu sync.Mutex
+	projResolve   = map[string][2]string{} // encoded -> {label, fullPath}
+)
+
+// resolveProject turns an encoded project-dir name into a human "org/repo"
+// label and the full real filesystem path, resolving Claude Code's lossy
+// hyphen encoding against the filesystem (so `cuber-it-sps-sim` reads back as
+// `cuber-it/sps-sim`, not `.../it/sps/sim`). Memoized — the same project dir
+// recurs across many sessions and each probe does filesystem stats.
+func resolveProject(encoded string) (label, full string) {
+	projResolveMu.Lock()
+	defer projResolveMu.Unlock()
+	if v, ok := projResolve[encoded]; ok {
+		return v[0], v[1]
 	}
-	return ".../" + strings.Join(parts[len(parts)-3:], "/")
+	segs, fullPath := probeRealPath(encoded)
+	switch len(segs) {
+	case 0:
+		parts := strings.Split(strings.TrimLeft(encoded, "-"), "-")
+		if len(parts) > 0 && parts[0] != "" {
+			label = parts[len(parts)-1]
+		}
+	case 1:
+		label = segs[0]
+	default:
+		label = segs[len(segs)-2] + "/" + segs[len(segs)-1]
+	}
+	if fullPath == string(filepath.Separator) {
+		fullPath = "/" + strings.ReplaceAll(strings.TrimLeft(encoded, "-"), "-", "/")
+	}
+	projResolve[encoded] = [2]string{label, fullPath}
+	return label, fullPath
 }
+
+// projectLabel is the short "org/repo" label shown in the sidebar.
+func projectLabel(raw string) string { label, _ := resolveProject(raw); return label }
 
 // probeRealPath greedily rebuilds a filesystem path from the hyphen-encoded
 // project-dir name (Claude Code replaces `/` with `-`, lossy if a real dir
@@ -944,9 +975,6 @@ func decodeProjectDir(encoded string) string {
 	if encoded == "" {
 		return ""
 	}
-	_, full := probeRealPath(encoded)
-	if full == string(filepath.Separator) {
-		return "/" + strings.ReplaceAll(strings.TrimLeft(encoded, "-"), "-", "/")
-	}
+	_, full := resolveProject(encoded)
 	return full
 }

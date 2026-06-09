@@ -7,6 +7,22 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-09
+
+### Fixed
+
+- **Project labels resolve correctly** instead of guessing. The sidebar showed
+  `.../it/sps/sim` for a session in `cuber-it/sps-sim` — it just replaced every
+  `-` in the encoded project-dir name with `/`, which mangles directory names
+  that contain hyphens. Labels now read back the real path from the filesystem
+  (resolving the lossy hyphen encoding) and show `org/repo`, e.g.
+  `cuber-it/sps-sim`. Memoized so the filesystem probe runs once per project.
+
+### Added
+
+- **Full project path in the session hover popup**, on its own line above the
+  start prompt, so it is clear which working directory a session belongs to.
+
 ## [0.3.1] - 2026-06-09
 
 ### Added
@@ -227,7 +243,8 @@ runtime session switching, favorites, and markdown export.
 - No config file — everything is either a CLI flag or `localStorage`
   (theme, language, sidepanel state, favorites, main session, last session, tab)
 
-[Unreleased]: https://github.com/cuber-it/ccview/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/cuber-it/ccview/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/cuber-it/ccview/releases/tag/v0.3.2
 [0.3.1]: https://github.com/cuber-it/ccview/releases/tag/v0.3.1
 [0.3.0]: https://github.com/cuber-it/ccview/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cuber-it/ccview/releases/tag/v0.2.0
