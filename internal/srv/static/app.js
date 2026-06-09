@@ -257,6 +257,8 @@
     if (!vars) return s;
     return s.replace(/\$\{(\w+)\}/g, (_, k) => vars[k] != null ? vars[k] : "");
   };
+  // The notes floater lives in a separate IIFE below; share the translator with it.
+  window.ccviewT = t;
 
   const applyI18n = () => {
     document.documentElement.lang = lang;
@@ -1881,6 +1883,9 @@
 
 // ---------- notes floater ----------
 (() => {
+  // i18n translator, shared from the main IIFE; fall back to the raw key so a
+  // missing export can never crash the editor init (it just shows keys).
+  const t = window.ccviewT || ((key) => key);
   const btn = document.getElementById("notesToggle");
   const fl = document.getElementById("notesFloater");
   const ta = document.getElementById("notesText");
