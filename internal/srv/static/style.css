@@ -371,7 +371,12 @@ body.sp-collapsed .sidepanel #promptList { display: none; }
 }
 .session-item { cursor: pointer; }
 .session-item:hover { background: var(--highlight); }
-.session-item.current { border-color: var(--tool-accent); }
+.session-item.current {
+  border-color: #6fb96f;
+  border-left: 3px solid #6fb96f;
+  background: rgba(111, 185, 111, 0.18); /* subtle green tint, readable on any theme */
+  font-weight: 600;
+}
 .session-item.today { box-shadow: 0 0 0 1px var(--success-fg) inset; }
 .session-item.today.current { box-shadow: 0 0 0 1px var(--tool-accent) inset; }
 .session-item .session-id {
