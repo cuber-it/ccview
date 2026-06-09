@@ -7,6 +7,8 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-09
+
 ### Docs / Packaging
 
 - **INSTALL.md** handbook (systemd + Docker setup) plus `Dockerfile`,
