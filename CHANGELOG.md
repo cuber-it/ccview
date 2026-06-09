@@ -11,6 +11,17 @@ Versioning follows [SemVer](https://semver.org/).
 
 - **INSTALL.md** handbook (systemd + Docker setup) plus `Dockerfile`,
   `docker-compose.yml`, `.dockerignore`. README install section points to it.
+- **Release pipeline** (`.goreleaser.yaml` + `release.yml` workflow): tagging
+  `vX.Y.Z` builds binaries for Linux/macOS/Windows (amd64 + arm64), attaches them
+  with checksums to a GitHub release, and pushes a multi-arch image to
+  `ghcr.io/cuber-it/ccview`.
+
+### Fixed
+
+- **Notes editor crashed** after the toolbar tooltips were translated: the
+  notes floater is a separate IIFE and could not see the `t()` translator,
+  so EasyMDE init threw `ReferenceError: t is not defined` and the editor never
+  loaded. The translator is now shared and guarded with a fallback.
 
 ### Changed
 

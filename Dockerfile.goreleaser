@@ -1,0 +1,13 @@
+# Minimal image for GoReleaser: it builds the binary itself and only needs a
+# base to drop it onto. (The repo's main Dockerfile compiles from source for
+# `docker compose build`; this one just ships the prebuilt static binary.)
+FROM gcr.io/distroless/static-debian12
+# GoReleaser (dockers_v2, buildx) stages each platform's binary under <os>/<arch>/.
+ARG TARGETOS
+ARG TARGETARCH
+COPY ${TARGETOS}/${TARGETARCH}/ccview /ccview
+# CLAUDE_CONFIG_DIR points at the mounted data dir; ccview expects projects/
+# (read) and ccview/ (its own DB + trash, read-write) underneath it.
+ENV CLAUDE_CONFIG_DIR=/data
+EXPOSE 12100
+ENTRYPOINT ["/ccview", "--no-browser", "--bind", "0.0.0.0", "--port", "12100"]
