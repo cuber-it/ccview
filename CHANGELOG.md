@@ -18,6 +18,10 @@ Versioning follows [SemVer](https://semver.org/).
 
 ### Fixed
 
+- **Stale frontend after updates**: the embedded assets were served without
+  cache headers, so browsers kept an old `app.js`/`style.css` across a server
+  update — features the new HTML expected (e.g. pinned-notes layout) silently
+  broke. Embedded assets are now served `Cache-Control: no-store`.
 - **Notes editor crashed** after the toolbar tooltips were translated: the
   notes floater is a separate IIFE and could not see the `t()` translator,
   so EasyMDE init threw `ReferenceError: t is not defined` and the editor never

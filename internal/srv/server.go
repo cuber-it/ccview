@@ -51,8 +51,10 @@ type Server struct {
 	rootCtx    context.Context
 }
 
-// noCache disables browser caching — used in CCVIEW_DEV mode so a reload
-// always fetches the latest static file.
+// noCache disables browser caching so a reload always fetches the latest
+// frontend. The assets are tiny and embedded, so there is no cost — and it
+// prevents a stale app.js/style.css surviving an update (which silently breaks
+// features that the new HTML expects).
 func noCache(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
@@ -94,7 +96,7 @@ func New(cfg Config) *Server {
 		if err != nil {
 			panic(err)
 		}
-		staticHandler = http.FileServer(http.FS(sub))
+		staticHandler = noCache(http.FileServer(http.FS(sub)))
 	}
 	s.mux.Handle("/", staticHandler)
 	s.mux.HandleFunc("/stream", s.handleStream)
