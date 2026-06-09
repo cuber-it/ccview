@@ -120,6 +120,7 @@
       md_image: "Bild einfügen",
       md_table: "Tabelle",
       md_preview: "Vorschau",
+      md_edit: "Bearbeiten",
       md_sbs: "Side-by-Side",
       md_fullscreen: "Vollbild",
       md_undo: "Rückgängig (Strg-Z)",
@@ -247,6 +248,7 @@
       md_image: "Insert image",
       md_table: "Table",
       md_preview: "Preview",
+      md_edit: "Edit",
       md_sbs: "Side-by-side",
       md_fullscreen: "Fullscreen",
       md_undo: "Undo (Ctrl-Z)",
@@ -1258,6 +1260,19 @@
         i++; continue;
       }
       if (/^---+\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+      // GFM table: a row with pipes followed by a dashed separator row.
+      if (line.includes("|") && i + 1 < lines.length &&
+          lines[i + 1].includes("-") && /^[\s|:-]+$/.test(lines[i + 1]) && lines[i + 1].includes("|")) {
+        const cells = (l) => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+        const header = cells(line);
+        i += 2; // skip header + separator
+        const rows = [];
+        while (i < lines.length && lines[i].includes("|") && lines[i].trim()) { rows.push(cells(lines[i])); i++; }
+        const th = header.map((c) => `<th>${renderInline(c)}</th>`).join("");
+        const trs = rows.map((r) => `<tr>${r.map((c) => `<td>${renderInline(c)}</td>`).join("")}</tr>`).join("");
+        out.push(`<table><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`);
+        continue;
+      }
       if (line.startsWith(">")) {
         const buf = [];
         while (i < lines.length && lines[i].startsWith(">")) {
@@ -1310,6 +1325,8 @@
       return renderBlocks(part);
     }).join("");
   };
+  // Shared with the notes floater (separate IIFE) for its preview toggle.
+  window.ccviewRenderMd = renderMarkdown;
 
   const prettyToolInput = (name, input) => {
     if (!input || typeof input !== "object") return escapeHtml(JSON.stringify(input, null, 2));
@@ -2045,6 +2062,25 @@
     setDirty(true);
     scheduleSave();
   });
+  // Markdown preview toggle — reuses the main renderer (shared via window), so
+  // there is no second markdown implementation and nothing heavy to load.
+  const renderMd = window.ccviewRenderMd || ((x) => x);
+  const previewEl = document.getElementById("notesPreview");
+  const pvBtn = document.getElementById("notesPreviewToggle");
+  let previewing = false;
+  const renderPreview = () => { if (previewEl) previewEl.innerHTML = renderMd(ta.value); };
+  const setPreview = (on) => {
+    previewing = on;
+    fl.classList.toggle("previewing", on);
+    if (previewEl) previewEl.hidden = !on;
+    if (pvBtn) {
+      pvBtn.classList.toggle("active", on);
+      pvBtn.innerHTML = on ? "&#9998;" : "&#128065;"; // ✎ back to edit / 👁 show preview
+      pvBtn.title = on ? t("md_edit") : t("md_preview");
+    }
+    if (on) renderPreview(); else ta.focus();
+  };
+  if (pvBtn) pvBtn.addEventListener("click", () => setPreview(!previewing));
   let sessionId = null;
   const shortTitle = () => sessionId ? t("notes_title") + " · " + sessionId.slice(0, 8) : t("notes_title");
   // Persist the edits for the session they were typed in. Returns true once
@@ -2079,6 +2115,7 @@
     }
     ta.value = text;
     loading = false; setDirty(false);
+    if (previewing) renderPreview();
   };
   const open = async (show) => {
     if (!show) await save(); // closing: silently persist to the DB, no dialog
@@ -2106,14 +2143,14 @@
   const resizeEl = document.getElementById("notesResize");
   if (resizeEl) {
     let rzActive = false;
-    resizeEl.addEventListener("mousedown", (e) => { rzActive = true; e.preventDefault(); document.body.style.userSelect = "none"; });
+    resizeEl.addEventListener("mousedown", (e) => { rzActive = true; e.preventDefault(); resizeEl.classList.add("dragging"); document.body.style.userSelect = "none"; });
     document.addEventListener("mousemove", (e) => {
       if (!rzActive) return;
       const w = Math.max(260, Math.min(window.innerWidth - 120, window.innerWidth - e.clientX));
       document.documentElement.style.setProperty("--notes-w", w + "px");
     });
     document.addEventListener("mouseup", () => {
-      if (!rzActive) return; rzActive = false; document.body.style.userSelect = "";
+      if (!rzActive) return; rzActive = false; resizeEl.classList.remove("dragging"); document.body.style.userSelect = "";
       localStorage.setItem("ccview-notes-w", getComputedStyle(document.documentElement).getPropertyValue("--notes-w").trim());
     });
   }

@@ -7,7 +7,23 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-06-09
+### Added
+
+- **Notes Markdown preview toggle** (👁 / ✎ in the notes toolbar): switches the
+  textarea for a rendered view and back. The preview reuses the main timeline
+  Markdown renderer (shared via `window.ccviewRenderMd`) — no second Markdown
+  implementation, nothing heavy to load, and nothing that can break on
+  session-switch the way the old EasyMDE editor did. Re-renders on switch while
+  open; the formatting buttons hide in preview mode.
+- **GFM tables now render** (header + `---` separator + rows) — in the notes
+  preview *and* in rendered session text (`text` / `user_prompt` blocks), which
+  previously dropped table markup as plain paragraphs.
+
+### Changed
+
+- **Pinned notes resize handle widened** from 6px to a 12px hit area with a
+  visible center grip that brightens on hover and while dragging, so the panel
+  edge is far easier to grab.
 
 ### Docs / Packaging
 
