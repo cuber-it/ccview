@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -112,6 +113,7 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/delete", s.handleDelete)
 	s.mux.HandleFunc("/api/query", s.handleQuery)
 	s.mux.HandleFunc("/api/schema", s.handleSchema)
+	s.mux.HandleFunc("/api/history", s.handleHistory)
 	return s
 }
 
@@ -209,10 +211,43 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	if !sw.open() {
 		return
 	}
-	if !replayHistory(sw, hist) {
+	// Replay only the tail of long sessions; rendering 20k events at once freezes
+	// the browser. The client lazy-loads older events via /api/history, using the
+	// offset reported in the meta frame.
+	start := 0
+	if len(hist) > replayCap {
+		start = len(hist) - replayCap
+	}
+	if !sw.writeMeta(len(hist), start) {
+		return
+	}
+	if !replayHistory(sw, hist[start:]) {
 		return
 	}
 	streamLive(r.Context(), sw, ch)
+}
+
+// replayCap bounds how many trailing events a fresh stream connection replays.
+const replayCap = 800
+
+// handleHistory returns a slice of older buffered events for the client's
+// "load older" action: ?before=<index>&limit=<n> yields events in
+// [before-limit, before). Operates on the currently active session's buffer.
+func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	hist := s.hub.History()
+	before := atoiDefault(r.URL.Query().Get("before"), len(hist))
+	limit := atoiDefault(r.URL.Query().Get("limit"), replayCap)
+	if before > len(hist) {
+		before = len(hist)
+	}
+	if before < 0 {
+		before = 0
+	}
+	start := before - limit
+	if start < 0 {
+		start = 0
+	}
+	writeJSON(w, map[string]any{"events": hist[start:before], "offset": start})
 }
 
 type sessionDTO struct {
@@ -676,6 +711,14 @@ func writeMarkdownExport(target string, meta export.Meta, events []parse.Event) 
 }
 
 // ---- helpers ----
+
+// atoiDefault parses s as an int, returning def when it is empty or invalid.
+func atoiDefault(s string, def int) int {
+	if n, err := strconv.Atoi(s); err == nil {
+		return n
+	}
+	return def
+}
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")

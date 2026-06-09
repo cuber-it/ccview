@@ -907,16 +907,25 @@ body.sp-collapsed .sidebar-resize { display: none; }
   background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px;
   box-shadow: 0 8px 30px rgba(0,0,0,.5); display: flex; flex-direction: column;
   min-width: 240px; min-height: 160px; resize: both; overflow: hidden; }
+/* `display: flex` above would otherwise override the [hidden] attribute, so the
+   panel could never actually close. This makes hide reliable. */
+.notes-floater[hidden] { display: none; }
 .notes-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move;
   border-bottom: 1px solid var(--border); }
 .notes-floater.pinned .notes-head { cursor: default; }
 .notes-title { flex: 1; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notes-tools button { background: none; border: none; cursor: pointer; color: var(--fg); opacity: .65; font-size: 13px; padding: 0 3px; }
 .notes-tools button:hover { opacity: 1; }
-.notes-floater textarea { flex: 1; border: none; resize: none; outline: none; background: transparent;
-  color: var(--fg); padding: 10px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; }
+.notes-toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.notes-toolbar button { background: none; border: 1px solid transparent; border-radius: 4px; color: var(--fg);
+  cursor: pointer; font-size: 12px; min-width: 24px; height: 22px; padding: 0 5px; opacity: .75; line-height: 1; }
+.notes-toolbar button:hover { background: var(--border); opacity: 1; }
+.notes-floater textarea { flex: 1; border: none; resize: none; outline: none; background: #fff;
+  color: #1e1e1e; padding: 10px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; }
 .notes-floater.pinned { top: var(--chrome-h); right: 0; bottom: var(--bottombar-h); height: auto; width: var(--notes-w); border-radius: 0; resize: none; }
-body.notes-pinned .container { margin-right: var(--notes-w); }
+/* Reserve space for the pinned panel only while it is actually open, so a
+   closed-but-pinned panel never leaves an empty strip. */
+body.notes-pinned.notes-visible .container { margin-right: var(--notes-w); }
 .notes-resize { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; display: none; z-index: 3; }
 .notes-floater.pinned .notes-resize { display: block; }
 .notes-floater.pinned .notes-resize:hover { background: #4a9eff; opacity: .6; }
@@ -925,16 +934,13 @@ body.notes-pinned .container { margin-right: var(--notes-w); }
 .notes-btn { background: none; border: 1px solid var(--border); color: var(--fg); cursor: pointer;
   border-radius: 4px; padding: 2px 8px; font-size: 12px; }
 .notes-btn:hover, .notes-btn.active { background: var(--border); }
-/* EasyMDE inside the notes floater */
-.notes-floater .EasyMDEContainer { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.notes-floater .EasyMDEContainer .CodeMirror { flex: 1; min-height: 0; border: none; background: #fff; color: #1e1e1e; font-size: 12px; }
-.notes-floater .editor-toolbar { border: none; border-bottom: 1px solid var(--border); background: var(--panel-bg); }
-.notes-floater .editor-toolbar button { color: var(--fg); border-color: transparent; }
-.notes-floater .editor-toolbar button:hover, .notes-floater .editor-toolbar button.active { background: var(--border); border-color: var(--border); }
-.notes-floater .editor-preview, .notes-floater .editor-preview-side { background: #fff; color: #1e1e1e; }
-.notes-floater .CodeMirror-cursor { border-left-color: #1e1e1e; }
-/* notes floater: hidden must win over display:flex */
-.notes-floater[hidden] { display: none; }
+
+/* "load older" control at the top of the event stream (lazy history) */
+.load-older { display: block; width: 100%; box-sizing: border-box; margin: 0 0 10px;
+  padding: 8px; background: var(--panel-bg); border: 1px dashed var(--border); border-radius: 6px;
+  color: var(--link); cursor: pointer; font-size: 12px; text-align: center; }
+.load-older:hover { background: var(--border); }
+.load-older:disabled { opacity: .5; cursor: default; }
 
 /* Settings dialog */
 .settings-sub { margin: 14px 0 4px; font-size: 13px; opacity: .9; }

@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ccview</title>
-<link rel="stylesheet" href="easymde.min.css">
-<link rel="stylesheet" href="fa-shim.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -131,6 +129,16 @@
       <button id="notesClose" data-i18n-title="close" title="Schließen">✕</button>
     </div>
   </div>
+  <div class="notes-toolbar" id="notesToolbar">
+    <button type="button" data-md="bold" data-i18n-title="md_bold" title="Fett"><b>B</b></button>
+    <button type="button" data-md="italic" data-i18n-title="md_italic" title="Kursiv"><i>I</i></button>
+    <button type="button" data-md="head" data-i18n-title="md_heading" title="Überschrift">H</button>
+    <button type="button" data-md="code" data-i18n-title="md_code" title="Code">&lt;/&gt;</button>
+    <button type="button" data-md="quote" data-i18n-title="md_quote" title="Zitat">&#10078;</button>
+    <button type="button" data-md="ul" data-i18n-title="md_ul" title="Liste">&bull;</button>
+    <button type="button" data-md="ol" data-i18n-title="md_ol" title="Nummerierte Liste">1.</button>
+    <button type="button" data-md="link" data-i18n-title="md_link" title="Link">&#128279;</button>
+  </div>
   <textarea id="notesText" data-i18n-placeholder="notes_ph" placeholder="Notizen zu dieser Session…"></textarea>
 </div>
 <aside class="sidepanel">
@@ -159,7 +167,6 @@
 </aside>
 <div class="sidebar-resize" id="sidebarResize" title="Sidebar ziehen"></div>
 <div class="container" id="events"></div>
-<script src="easymde.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

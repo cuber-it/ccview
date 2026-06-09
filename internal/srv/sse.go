@@ -39,6 +39,13 @@ func newSSEWriter(w http.ResponseWriter) (*sseWriter, bool) {
 // before any real event arrives.
 func (s *sseWriter) open() bool { return s.writeRaw(": ok\n\n") }
 
+// writeMeta sends a one-off "meta" frame with the session's total event count
+// and the index of the first replayed event, so the client knows how many
+// older events exist and can lazy-load them via /api/history.
+func (s *sseWriter) writeMeta(total, offset int) bool {
+	return s.writeRaw(fmt.Sprintf("event: meta\ndata: {\"total\":%d,\"offset\":%d}\n\n", total, offset))
+}
+
 // keepalive emits a comment frame to keep proxies from closing the connection.
 func (s *sseWriter) keepalive() bool { return s.writeRaw(": keepalive\n\n") }
 

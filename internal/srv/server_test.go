@@ -96,6 +96,9 @@ func TestServer_StreamHistoryAndLive(t *testing.T) {
 			if err := json.Unmarshal([]byte(payload), &ev); err != nil {
 				continue
 			}
+			if ev.Kind == "" {
+				continue // skip the meta frame (total/offset), keep only real events
+			}
 			events <- ev
 		}
 	}()

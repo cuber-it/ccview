@@ -29,6 +29,17 @@ Versioning follows [SemVer](https://semver.org/).
 
 ### Changed
 
+- **Notes are now a plain textarea** with a small built-in Markdown toolbar
+  (bold/italic/heading/code/quote/lists/link), replacing the EasyMDE/CodeMirror
+  editor. The rich editor needed display-refresh juggling that broke on open and
+  on session-switch; the textarea opens/closes reliably and switches cleanly.
+  Closing with unsaved edits asks before discarding; the white writing surface
+  stays.
+- **Large sessions render fast**: a fresh stream now replays only the last 800
+  events with a "load older" control to page further back, clamp measurement is
+  deferred to blocks scrolling into view (no per-event layout thrash), and
+  scroll-to-bottom is coalesced to one per frame. (Switching to a huge session
+  on an existing connection still streams all events — tracked separately.)
 - **Central SQLite store** (`~/.claude/ccview/ccview.db`, pure-Go driver, honours
   `CLAUDE_CONFIG_DIR`) now holds config, project roots, per-session notes, custom
   names/favorites, and project-group settings — replacing the earlier mix of

@@ -5,6 +5,7 @@
       status_connecting: "connecting…",
       status_connected:  "verbunden",
       status_disconnected: "getrennt — reconnecting…",
+      load_older: "▲ ${n} ältere Einträge laden",
       menu: "Menü",
       menu_save: "Speichern",
       menu_save_as: "Speichern unter…",
@@ -123,11 +124,14 @@
       md_undo: "Rückgängig (Strg-Z)",
       md_redo: "Wiederholen (Strg-Y)",
       notes_unsaved: "ungespeicherte Änderungen",
+      notes_close_confirm: "Es gibt ungespeicherte Notizen. Speichern?",
+      notes_ph: "Anmerkungen zu dieser Session … (Markdown)",
     },
     en: {
       status_connecting: "connecting…",
       status_connected:  "connected",
       status_disconnected: "disconnected — reconnecting…",
+      load_older: "▲ Load ${n} older entries",
       menu: "Menu",
       menu_save: "Save",
       menu_save_as: "Save As…",
@@ -246,6 +250,8 @@
       md_undo: "Undo (Ctrl-Z)",
       md_redo: "Redo (Ctrl-Y)",
       notes_unsaved: "unsaved changes",
+      notes_close_confirm: "You have unsaved notes. Save them?",
+      notes_ph: "Notes for this session … (Markdown)",
     },
   };
 
@@ -1511,7 +1517,7 @@
     ev.blocks.length > 0 &&
     !isRealUserPrompt(ev);
 
-  const eventEl = (ev) => {
+  const eventEl = (ev, older) => {
     const el = document.createElement("div");
     let cls = "event " + (ev.kind || "unknown");
     if (isRealUserPrompt(ev))      cls += " prompt";
@@ -1524,15 +1530,21 @@
     const left = document.createElement("span");
     left.className = "event-label";
     if (isRealUserPrompt(ev)) {
-      promptCount += 1;
-      const num = promptCount;
-      el.id = `prompt-${num}`;
-      const badge = document.createElement("span");
-      badge.className = "prompt-num";
-      badge.textContent = `#${String(num).padStart(4, "0")}`;
-      left.appendChild(badge);
-      left.appendChild(document.createTextNode(t("event_user")));
-      addPromptLink(num, ev.blocks[0].text || "");
+      // `older` = lazily-loaded history above the cap: render for viewing but
+      // don't touch the prompt numbering/index (those track the live tail).
+      if (older) {
+        left.appendChild(document.createTextNode(t("event_user")));
+      } else {
+        promptCount += 1;
+        const num = promptCount;
+        el.id = `prompt-${num}`;
+        const badge = document.createElement("span");
+        badge.className = "prompt-num";
+        badge.textContent = `#${String(num).padStart(4, "0")}`;
+        left.appendChild(badge);
+        left.appendChild(document.createTextNode(t("event_user")));
+        addPromptLink(num, ev.blocks[0].text || "");
+      }
     } else if (isToolResultUser(ev)) {
       left.textContent = t("event_tool_result");
     } else {
@@ -1577,11 +1589,27 @@
 
   // Apply per-block clamps to an event AFTER it is in the document, so
   // scrollHeight/clientHeight reflect the real layout.
+  // Reading scrollHeight in applyClamp forces a synchronous layout. Doing that
+  // for every block while replaying a 20k-event session freezes the page for
+  // seconds. So defer it: measure a block only once it scrolls near the
+  // viewport. Only the handful of visible blocks ever pay the reflow.
+  const clampObserver = ("IntersectionObserver" in window)
+    ? new IntersectionObserver((entries, obs) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          obs.unobserve(e.target);
+          applyClamp(e.target, Number(e.target.dataset.clampCap) || 0);
+        }
+      }, { rootMargin: "400px" })
+    : null;
   const applyEventClamps = (eventNode, ev) => {
     const blocks = (ev.blocks || []).filter(hasMeaningfulText);
     const nodes = eventNode.querySelectorAll(":scope > .block");
     blocks.forEach((b, i) => {
-      if (nodes[i]) applyClamp(nodes[i], BLOCK_CAPS[b.kind]);
+      const cap = BLOCK_CAPS[b.kind];
+      if (!nodes[i] || !cap) return;
+      if (clampObserver) { nodes[i].dataset.clampCap = cap; clampObserver.observe(nodes[i]); }
+      else applyClamp(nodes[i], cap);
     });
   };
 
@@ -1806,8 +1834,60 @@
     lastKey = null;
   });
 
+  // Coalesce scroll-to-bottom: scrolling on every replayed event forces a
+  // layout per event. Collapse them to one scroll per animation frame.
+  let scrollQueued = false;
+  const scrollToBottomSoon = () => {
+    if (scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(() => { scrollQueued = false; window.scrollTo(0, document.body.scrollHeight); });
+  };
+
+  // ---- lazy "load older": the stream only replays the last replayCap events;
+  // older ones are fetched on demand and prepended, preserving scroll. ----
+  let firstShownIndex = 0;
+  const olderBtn = document.createElement("button");
+  olderBtn.id = "loadOlder";
+  olderBtn.className = "load-older";
+  olderBtn.hidden = true;
+  const updateLoadOlder = () => {
+    olderBtn.hidden = !(firstShownIndex > 0);
+    if (!olderBtn.hidden) olderBtn.textContent = t("load_older", { n: firstShownIndex });
+  };
+  const loadOlder = async () => {
+    if (firstShownIndex <= 0) return;
+    olderBtn.disabled = true;
+    try {
+      const r = await fetch(`/api/history?before=${firstShownIndex}&limit=500`);
+      if (!r.ok) return;
+      const data = await r.json();
+      const evs = data.events || [];
+      const prevH = document.documentElement.scrollHeight, prevY = window.scrollY;
+      const frag = document.createDocumentFragment();
+      const lo = searchInput.value ? searchInput.value.toLowerCase() : "";
+      const fresh = [];
+      for (const ev of evs) {
+        if (!shouldRender(ev)) continue;
+        const node = eventEl(ev, true);
+        if (lo) node.hidden = !node.textContent.toLowerCase().includes(lo);
+        frag.appendChild(node);
+        fresh.push([node, ev]);
+      }
+      eventsEl.insertBefore(frag, olderBtn.nextSibling);
+      fresh.forEach(([node, ev]) => applyEventClamps(node, ev));
+      firstShownIndex = data.offset || 0;
+      updateLoadOlder();
+      // content was inserted above — keep the viewport on the same content
+      window.scrollTo(0, prevY + (document.documentElement.scrollHeight - prevH));
+    } catch { /* ignore */ } finally { olderBtn.disabled = false; }
+  };
+  olderBtn.addEventListener("click", loadOlder);
+
   const clearView = () => {
     eventsEl.innerHTML = "";
+    eventsEl.appendChild(olderBtn);   // keep the "load older" control at the top
+    firstShownIndex = 0;
+    updateLoadOlder();
     resetPromptList();
     emptyEl = null;
     showEmpty();
@@ -1830,6 +1910,10 @@
       clearView();
       loadSessions(); // refresh sessions tab after switch
     });
+    es.addEventListener("meta", (e) => {
+      // how many older events exist above the replayed tail → "load older"
+      try { const m = JSON.parse(e.data); firstShownIndex = m.offset || 0; updateLoadOlder(); } catch { /* ignore */ }
+    });
     es.onmessage = (e) => {
       clearEmpty();
       try {
@@ -1845,7 +1929,7 @@
         applyEventClamps(node, ev);
         bumpStats(+1);
         if (atBottom && !scrollPaused) {
-          window.scrollTo(0, document.body.scrollHeight);
+          scrollToBottomSoon();
         } else {
           jumpLiveBtn.classList.add("visible");
         }
@@ -1891,68 +1975,100 @@
   const ta = document.getElementById("notesText");
   const titleEl = document.getElementById("notesTitle");
   if (!btn || !fl || !ta) return;
-  const easymde = new EasyMDE({
-    element: ta,
-    autoDownloadFontAwesome: false,
-    spellChecker: false,
-    status: false,
-    placeholder: "Notizen zu dieser Session… (Markdown)",
-    toolbar: [
-      { name: "bold", action: EasyMDE.toggleBold, className: "fa fa-bold", title: t("md_bold") },
-      { name: "italic", action: EasyMDE.toggleItalic, className: "fa fa-italic", title: t("md_italic") },
-      { name: "heading", action: EasyMDE.toggleHeadingSmaller, className: "fa fa-header", title: t("md_heading") },
-      "|",
-      { name: "code", action: EasyMDE.toggleCodeBlock, className: "fa fa-code", title: t("md_code") },
-      { name: "quote", action: EasyMDE.toggleBlockquote, className: "fa fa-quote-left", title: t("md_quote") },
-      { name: "unordered-list", action: EasyMDE.toggleUnorderedList, className: "fa fa-list-ul", title: t("md_ul") },
-      { name: "ordered-list", action: EasyMDE.toggleOrderedList, className: "fa fa-list-ol", title: t("md_ol") },
-      "|",
-      { name: "link", action: EasyMDE.drawLink, className: "fa fa-link", title: t("md_link") },
-      { name: "image", action: EasyMDE.drawImage, className: "fa fa-image", title: t("md_image") },
-      { name: "table", action: EasyMDE.drawTable, className: "fa fa-table", title: t("md_table") },
-      "|",
-      { name: "preview", action: EasyMDE.togglePreview, className: "fa fa-eye no-disable", title: t("md_preview") },
-      { name: "side-by-side", action: EasyMDE.toggleSideBySide, className: "fa fa-columns no-disable", title: t("md_sbs") },
-      { name: "fullscreen", action: EasyMDE.toggleFullScreen, className: "fa fa-arrows-alt no-disable", title: t("md_fullscreen") },
-      "|",
-      { name: "undo", action: EasyMDE.undo, className: "fa fa-undo no-disable", title: t("md_undo") },
-      { name: "redo", action: EasyMDE.redo, className: "fa fa-repeat no-disable", title: t("md_redo") },
-    ],
-  });
+  // Notes are plain Markdown-as-text in a textarea — deliberately simple. A rich
+  // editor (EasyMDE/CodeMirror) needed display-refresh juggling that broke on
+  // open and session-switch; a textarea just takes text in and gives it back.
+  ta.placeholder = t("notes_ph");
   const notesSaveBtn = document.getElementById("notesSave");
   let loading = false;
+  let dirty = false;
   const setDirty = (d) => {
+    dirty = d;
     notesSaveBtn.classList.toggle("dirty", d);
     notesSaveBtn.title = d ? t("notes_unsaved") : t("notes_save_t");
   };
-  easymde.codemirror.on("change", () => { if (!loading) setDirty(true); });
+  ta.addEventListener("input", () => { if (!loading) setDirty(true); });
+
+  // Minimal Markdown toolbar — only reads/writes ta.value and the selection, so
+  // there is nothing that can get out of sync or need a refresh.
+  const surround = (before, after) => {
+    const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value, sel = v.slice(s, e);
+    ta.value = v.slice(0, s) + before + sel + after + v.slice(e);
+    ta.selectionStart = s + before.length;
+    ta.selectionEnd = s + before.length + sel.length;
+  };
+  const linePrefix = (prefix, numbered) => {
+    const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
+    const ls = v.lastIndexOf("\n", s - 1) + 1;     // start of the first selected line
+    const block = v.slice(ls, e);
+    const out = block.split("\n").map((ln, i) => (numbered ? (i + 1) + ". " : prefix) + ln).join("\n");
+    ta.value = v.slice(0, ls) + out + v.slice(e);
+    ta.selectionStart = ls; ta.selectionEnd = ls + out.length;
+  };
+  const mdActions = {
+    bold: () => surround("**", "**"),
+    italic: () => surround("*", "*"),
+    code: () => surround("`", "`"),
+    head: () => linePrefix("# "),
+    quote: () => linePrefix("> "),
+    ul: () => linePrefix("- "),
+    ol: () => linePrefix("", true),
+    link: () => surround("[", "](url)"),
+  };
+  const notesToolbar = document.getElementById("notesToolbar");
+  if (notesToolbar) notesToolbar.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-md]");
+    if (!b || !mdActions[b.dataset.md]) return;
+    mdActions[b.dataset.md]();
+    ta.focus();
+    setDirty(true);
+  });
   let sessionId = null;
   const shortTitle = () => sessionId ? t("notes_title") + " · " + sessionId.slice(0, 8) : t("notes_title");
+  // Persist the edits for the session they were typed in. Returns true once
+  // stored (or nothing to store). Keeps the dirty flag on failure so nothing is
+  // lost, and captures the id so a save can't land under a switched-to session.
+  const save = async (flash) => {
+    if (!sessionId || !dirty) return true;
+    const sid = sessionId, content = ta.value;
+    try {
+      const r = await fetch("/api/notes?session=" + encodeURIComponent(sid), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }) });
+      if (!r.ok) return false;
+      if (sid === sessionId) setDirty(false);
+      if (flash) { titleEl.textContent = "✓ " + shortTitle(); setTimeout(() => { titleEl.textContent = shortTitle(); }, 1200); }
+      return true;
+    } catch { return false; }
+  };
+  // Load the notes for the currently selected session. Switching sessions while
+  // dirty silently persists the previous one first — no data loss, no nagging.
   const load = async () => {
+    await save(false);
     sessionId = localStorage.getItem("ccview.lastSession");
     titleEl.textContent = shortTitle();
     loading = true;
-    if (!sessionId) { easymde.value(""); loading = false; setDirty(false); return; }
-    try { const r = await fetch("/api/notes?session=" + encodeURIComponent(sessionId)); easymde.value((await r.json()).content || ""); } catch { /* ignore */ }
+    let text = "";
+    if (sessionId) {
+      try { const r = await fetch("/api/notes?session=" + encodeURIComponent(sessionId)); text = (await r.json()).content || ""; } catch { /* offline: show empty */ }
+    }
+    ta.value = text;
     loading = false; setDirty(false);
   };
-  const save = async () => {
-    if (!sessionId) return;
-    try {
-      await fetch("/api/notes?session=" + encodeURIComponent(sessionId), { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: easymde.value() }) });
-      setDirty(false);
-      titleEl.textContent = "✓ " + shortTitle();
-      setTimeout(() => { titleEl.textContent = shortTitle(); }, 1200);
-    } catch { /* ignore */ }
-  };
-  const open = (show) => {
-    fl.hidden = !show; btn.classList.toggle("active", show);
-    if (show) { load(); setTimeout(() => easymde.codemirror.refresh(), 30); }
+  const open = async (show) => {
+    if (!show && dirty) {
+      // The X must never silently lose text: ask before discarding.
+      if (window.confirm(t("notes_close_confirm"))) await save(true);
+      else setDirty(false);       // discard: next open reloads the stored version
+    }
+    fl.hidden = !show;
+    btn.classList.toggle("active", show);
+    document.body.classList.toggle("notes-visible", show);
+    if (show) await load();
   };
   btn.addEventListener("click", () => open(fl.hidden));
   document.getElementById("notesClose").addEventListener("click", () => open(false));
-  document.getElementById("notesSave").addEventListener("click", save);
+  document.getElementById("notesSave").addEventListener("click", () => save(true));
   const savedNotesW = localStorage.getItem("ccview-notes-w");
   if (savedNotesW) document.documentElement.style.setProperty("--notes-w", savedNotesW);
   const resizeEl = document.getElementById("notesResize");
@@ -1967,7 +2083,6 @@
     document.addEventListener("mouseup", () => {
       if (!rzActive) return; rzActive = false; document.body.style.userSelect = "";
       localStorage.setItem("ccview-notes-w", getComputedStyle(document.documentElement).getPropertyValue("--notes-w").trim());
-      easymde.codemirror.refresh();
     });
   }
   document.getElementById("notesPin").addEventListener("click", () => {
@@ -1977,7 +2092,7 @@
     localStorage.setItem("ccview-notes-pinned", pinned ? "1" : "0");
   });
   document.addEventListener("keydown", (e) => {
-    if (!fl.hidden && (e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault(); save(); }
+    if (!fl.hidden && (e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault(); save(true); }
   });
   document.addEventListener("ccview:session", () => { if (!fl.hidden) load(); });
   if (localStorage.getItem("ccview-notes-pinned") === "1") { fl.classList.add("pinned"); document.body.classList.add("notes-pinned"); }
