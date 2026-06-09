@@ -1998,15 +1998,11 @@
   // editor (EasyMDE/CodeMirror) needed display-refresh juggling that broke on
   // open and session-switch; a textarea just takes text in and gives it back.
   ta.placeholder = t("notes_ph");
-  const notesSaveBtn = document.getElementById("notesSave");
   let loading = false;
   let dirty = false;
-  const setDirty = (d) => {
-    dirty = d;
-    notesSaveBtn.classList.toggle("dirty", d);
-    notesSaveBtn.title = d ? t("notes_unsaved") : t("notes_save_t");
-  };
-  ta.addEventListener("input", () => { if (!loading) setDirty(true); });
+  let saveTimer = null;
+  const setDirty = (d) => { dirty = d; }; // tracked for autosave; saving is silent, no marker
+  ta.addEventListener("input", () => { if (!loading) { setDirty(true); scheduleSave(); } });
 
   // Minimal Markdown toolbar — only reads/writes ta.value and the selection, so
   // there is nothing that can get out of sync or need a refresh.
@@ -2024,6 +2020,11 @@
     ta.value = v.slice(0, ls) + out + v.slice(e);
     ta.selectionStart = ls; ta.selectionEnd = ls + out.length;
   };
+  const insert = (text) => {
+    const s = ta.selectionStart, v = ta.value;
+    ta.value = v.slice(0, s) + text + v.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = s + text.length;
+  };
   const mdActions = {
     bold: () => surround("**", "**"),
     italic: () => surround("*", "*"),
@@ -2033,6 +2034,7 @@
     ul: () => linePrefix("- "),
     ol: () => linePrefix("", true),
     link: () => surround("[", "](url)"),
+    table: () => insert("\n| Spalte 1 | Spalte 2 | Spalte 3 |\n| --- | --- | --- |\n| | | |\n| | | |\n"),
   };
   const notesToolbar = document.getElementById("notesToolbar");
   if (notesToolbar) notesToolbar.addEventListener("click", (e) => {
@@ -2041,13 +2043,16 @@
     mdActions[b.dataset.md]();
     ta.focus();
     setDirty(true);
+    scheduleSave();
   });
   let sessionId = null;
   const shortTitle = () => sessionId ? t("notes_title") + " · " + sessionId.slice(0, 8) : t("notes_title");
   // Persist the edits for the session they were typed in. Returns true once
   // stored (or nothing to store). Keeps the dirty flag on failure so nothing is
   // lost, and captures the id so a save can't land under a switched-to session.
-  const save = async (flash) => {
+  // Autosave to the DB — silent. Keeps the dirty flag on failure so nothing is
+  // lost, and captures the id so a save can't land under a switched-to session.
+  const save = async () => {
     if (!sessionId || !dirty) return true;
     const sid = sessionId, content = ta.value;
     try {
@@ -2056,14 +2061,15 @@
         body: JSON.stringify({ content }) });
       if (!r.ok) return false;
       if (sid === sessionId) setDirty(false);
-      if (flash) { titleEl.textContent = "✓ " + shortTitle(); setTimeout(() => { titleEl.textContent = shortTitle(); }, 1200); }
       return true;
     } catch { return false; }
   };
+  const scheduleSave = () => { if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(save, 700); };
   // Load the notes for the currently selected session. Switching sessions while
   // dirty silently persists the previous one first — no data loss, no nagging.
   const load = async () => {
-    await save(false);
+    if (saveTimer) clearTimeout(saveTimer);
+    await save(); // switching sessions: silently persist the previous one first
     sessionId = localStorage.getItem("ccview.lastSession");
     titleEl.textContent = shortTitle();
     loading = true;
@@ -2075,11 +2081,7 @@
     loading = false; setDirty(false);
   };
   const open = async (show) => {
-    if (!show && dirty) {
-      // The X must never silently lose text: ask before discarding.
-      if (window.confirm(t("notes_close_confirm"))) await save(true);
-      else setDirty(false);       // discard: next open reloads the stored version
-    }
+    if (!show) await save(); // closing: silently persist to the DB, no dialog
     fl.hidden = !show;
     btn.classList.toggle("active", show);
     document.body.classList.toggle("notes-visible", show);
@@ -2087,7 +2089,18 @@
   };
   btn.addEventListener("click", () => open(fl.hidden));
   document.getElementById("notesClose").addEventListener("click", () => open(false));
-  document.getElementById("notesSave").addEventListener("click", () => save(true));
+  // The save button (and Ctrl-S) export the note as a downloadable .md file —
+  // persistence to the DB is automatic, so this is purely "give me a file".
+  const exportNoteFile = () => {
+    const stamp = sessionId ? sessionId.slice(0, 8) : "session";
+    const blob = new Blob([ta.value], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "ccview-notes-" + stamp + ".md";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  document.getElementById("notesSave").addEventListener("click", exportNoteFile);
   const savedNotesW = localStorage.getItem("ccview-notes-w");
   if (savedNotesW) document.documentElement.style.setProperty("--notes-w", savedNotesW);
   const resizeEl = document.getElementById("notesResize");
@@ -2111,7 +2124,7 @@
     localStorage.setItem("ccview-notes-pinned", pinned ? "1" : "0");
   });
   document.addEventListener("keydown", (e) => {
-    if (!fl.hidden && (e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault(); save(true); }
+    if (!fl.hidden && (e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault(); exportNoteFile(); }
   });
   document.addEventListener("ccview:session", () => { if (!fl.hidden) load(); });
   if (localStorage.getItem("ccview-notes-pinned") === "1") { fl.classList.add("pinned"); document.body.classList.add("notes-pinned"); }

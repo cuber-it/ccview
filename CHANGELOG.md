@@ -29,6 +29,12 @@ Versioning follows [SemVer](https://semver.org/).
 
 ### Changed
 
+- **Notes autosave silently to the DB** (while typing, on session-switch, on
+  close) — no confirm dialog. The save button (and Ctrl-S) now **exports the
+  note as a downloadable `.md` file** instead of saving (persistence is
+  automatic). Added a **table** button to the notes toolbar.
+- **Favorites bar always highlights the current session green**, not just chips
+  with new events — so the one you're viewing is never the colorless one.
 - **Notes are now a plain textarea** with a small built-in Markdown toolbar
   (bold/italic/heading/code/quote/lists/link), replacing the EasyMDE/CodeMirror
   editor. The rich editor needed display-refresh juggling that broke on open and
