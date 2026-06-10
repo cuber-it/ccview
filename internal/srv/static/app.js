@@ -73,6 +73,7 @@
       ctx_rename: "Umbenennen",
       ctx_transcript: "HTML-Transkript",
       ctx_actions: "Aktionen",
+      resume_copy_t: "Resume-Befehl kopieren (cd && claude --resume)",
       ctx_hide: "Ausblenden",
       ctx_show: "Einblenden",
       ctx_copy: "ID kopieren",
@@ -202,6 +203,7 @@
       ctx_rename: "Rename",
       ctx_transcript: "HTML transcript",
       ctx_actions: "Actions",
+      resume_copy_t: "Copy resume command (cd && claude --resume)",
       ctx_hide: "Hide",
       ctx_show: "Show",
       ctx_copy: "Copy ID",
@@ -979,7 +981,21 @@
           ctxMenu.hidden = false;
         });
 
-        head.append(fav, main, idText, burger);
+        // resume: copy "cd '<cwd>' && claude --resume <id>" to the clipboard
+        const resume = document.createElement("button");
+        resume.className = "session-resume";
+        resume.textContent = "▶";
+        resume.title = t("resume_copy_t");
+        resume.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const cwd = s.project_path || "";
+          const cmd = (cwd ? "cd '" + cwd + "' && " : "") + "claude --resume " + s.id;
+          navigator.clipboard.writeText(cmd);
+          resume.textContent = "✓"; resume.classList.add("copied");
+          setTimeout(() => { resume.textContent = "▶"; resume.classList.remove("copied"); }, 1000);
+        });
+
+        head.append(fav, main, idText, resume, burger);
         item.appendChild(head);
 
         // custom name below the header, if present
@@ -1722,26 +1738,6 @@
     statsEl.textContent = `${eventCount} events · ${promptCount} prompts`;
   };
 
-  // current session id, copyable as a restore command line
-  const curSessionEl = document.getElementById("curSession");
-  const updateCurSession = (fullId) => {
-    if (!fullId) { curSessionEl.hidden = true; return; }
-    curSessionEl.hidden = false;
-    curSessionEl.textContent = "⧉ " + fullId.slice(0, 8);
-    curSessionEl.dataset.cmd = "claude --resume " + fullId;
-    curSessionEl.title = "kopiert: claude --resume " + fullId;
-  };
-  curSessionEl.addEventListener("click", () => {
-    const cmd = curSessionEl.dataset.cmd;
-    if (!cmd) return;
-    navigator.clipboard.writeText(cmd);
-    const prev = curSessionEl.textContent;
-    curSessionEl.textContent = t("cursession_copied");
-    curSessionEl.classList.add("copied");
-    setTimeout(() => { curSessionEl.textContent = prev; curSessionEl.classList.remove("copied"); }, 900);
-  });
-  document.addEventListener("ccview:session", (e) => updateCurSession(e.detail));
-  updateCurSession(localStorage.getItem("ccview.lastSession"));
 
   // ---------- auto-scroll-pause ----------
   const jumpLiveBtn = document.getElementById("jumpLive");

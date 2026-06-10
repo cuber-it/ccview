@@ -9,6 +9,11 @@ Versioning follows [SemVer](https://semver.org/).
 
 ### Changed
 
+- **Per-session resume button.** Each session tile has a ▶ button (left of the
+  burger) that copies `cd '<cwd>' && claude --resume <id>` to the clipboard —
+  paste into any terminal to resume in the right directory (fixes the old
+  "wrong cwd → no sessions match" trap). Replaces the single top-left current-
+  session copy button, which is removed.
 - **Session tile header reworked.** The two indistinguishable stars are now
   distinct: a **gold ★** marks a favorite (favbar), a **📌** marks the main
   (startup-default) session — both with tooltips. New header layout puts the two
