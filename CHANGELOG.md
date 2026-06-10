@@ -7,6 +7,12 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Pinned (favorite) sessions are always in the "Active" group, pinned to the
+  top** — not only when they have activity today. They stay there from pinning
+  until you unpin, and remain reorderable among themselves (▲▼).
+
 ## [0.3.3] - 2026-06-10
 
 ### Changed

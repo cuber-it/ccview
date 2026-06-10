@@ -786,13 +786,19 @@
     h.querySelector(".grp-count").textContent = count;
     return h;
   };
-  const isActive = (s) => s.current || isToday(s.last_event) || isToday(s.first_event);
+  const isActive = (s) => s.current || isToday(s.last_event) || isToday(s.first_event) || isFav(s.id);
   const loadActiveOrder = () => { try { return JSON.parse(localStorage.getItem("ccview-active-order") || "[]"); } catch { return []; } };
   const saveActiveOrder = (arr) => localStorage.setItem("ccview-active-order", JSON.stringify(arr));
   const sortActive = (act) => {
     const order = loadActiveOrder();
     const rank = id => { const i = order.indexOf(id); return i < 0 ? 1e9 : i; };
-    return act.map((s, i) => [s, i]).sort((a, b) => (rank(a[0].id) - rank(b[0].id)) || (a[1] - b[1])).map(p => p[0]);
+    // Pinned (favorite) sessions stay at the top of the active list — reorderable
+    // among themselves; within each tier the manual order, then original index.
+    return act.map((s, i) => [s, i]).sort((a, b) =>
+      ((isFav(b[0].id) ? 1 : 0) - (isFav(a[0].id) ? 1 : 0))
+      || (rank(a[0].id) - rank(b[0].id))
+      || (a[1] - b[1])
+    ).map(p => p[0]);
   };
   let currentActiveIds = [];
   const moveActive = (id, dir) => {
