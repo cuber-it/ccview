@@ -469,27 +469,25 @@ body.sp-collapsed .favbar { left: 28px; }
 .fav-chip .fav-unpin:hover { color: var(--error-fg); background: rgba(0,0,0,0.08); }
 [data-theme="light"] .fav-chip .fav-unpin:hover { background: rgba(0,0,0,0.06); }
 
-/* Pin + main buttons on session-item */
-.session-item { position: relative; padding-right: 52px; }
-.session-item .pin-btn,
-.session-item .main-btn {
-  position: absolute;
-  top: 4px;
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 3px;
+/* session-item header row: [★ favorite] [📌 main] short_id … [☰ actions] */
+.session-item { position: relative; }
+.session-head { display: flex; align-items: center; gap: 3px; }
+.session-id-text {
+  flex: 1; min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  color: var(--muted); font-size: 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.session-item .pin-btn  { right: 6px; }
-.session-item .main-btn { right: 30px; }
-.session-item .pin-btn:hover  { color: var(--tool-accent); }
-.session-item .main-btn:hover { color: #5bb6e8; }
-.session-item .pin-btn.pinned { color: var(--tool-accent); }
-.session-item .main-btn.active { color: #5bb6e8; }
+.session-head .current-badge { color: var(--tool-accent); font-weight: 600; }
+.fav-star, .main-pin {
+  flex: none; background: none; border: none; cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 0 1px; color: var(--muted); opacity: .5;
+}
+.fav-star:hover, .main-pin:hover { opacity: 1; }
+.fav-star.on { color: #f5c518; opacity: 1; }      /* favorite = gold star (favbar) */
+.main-pin { font-size: 11px; filter: grayscale(1); opacity: .4; } /* inactive = greyed pin */
+.main-pin.on { filter: none; opacity: 1; }          /* main = active pin (startup default) */
+.session-name { margin-top: 1px; }
 .session-item.is-main {
   border-color: #5bb6e8;
   box-shadow: 0 0 0 1px #5bb6e8 inset;
@@ -881,18 +879,13 @@ a { color: var(--link); }
 /* fix: hidden attribute must win over display:flex */
 .ctxmenu[hidden] { display: none; }
 
-/* mini-burger per session (appears on hover/focus) */
-.session-item { position: relative; }
+/* mini-burger per session — inline at the right end of the header row */
 .session-burger {
-  position: absolute; top: 4px; right: 6px;
-  background: var(--panel-bg); border: 1px solid var(--border);
-  cursor: pointer; color: var(--fg); opacity: 0;
-  font-size: 11px; line-height: 1; padding: 1px 5px; border-radius: 3px;
-  transition: opacity .12s;
+  flex: none; background: none; border: none;
+  cursor: pointer; color: var(--muted); opacity: .5;
+  font-size: 12px; line-height: 1; padding: 0 2px;
 }
-.session-item:hover .session-burger,
-.session-item.current .session-burger { opacity: 0.65; }
-.session-burger:hover { opacity: 1; }
+.session-burger:hover { opacity: 1; color: var(--fg); }
 
 /* context menu separator */
 .ctxmenu .ctxsep { height: 1px; background: var(--border); margin: 4px 2px; }

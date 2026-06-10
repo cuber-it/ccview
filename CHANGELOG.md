@@ -7,6 +7,14 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Session tile header reworked.** The two indistinguishable stars are now
+  distinct: a **gold ★** marks a favorite (favbar), a **📌** marks the main
+  (startup-default) session — both with tooltips. New header layout puts the two
+  toggles and the id on the left and the actions burger on the right (inline, so
+  it no longer overlaps a star), with the custom name on its own line below.
+
 ## [0.3.2] - 2026-06-09
 
 ### Fixed

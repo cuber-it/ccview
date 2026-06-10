@@ -72,6 +72,7 @@
       ctx_fav: "Favorit",
       ctx_rename: "Umbenennen",
       ctx_transcript: "HTML-Transkript",
+      ctx_actions: "Aktionen",
       ctx_hide: "Ausblenden",
       ctx_show: "Einblenden",
       ctx_copy: "ID kopieren",
@@ -200,6 +201,7 @@
       ctx_fav: "Favorite",
       ctx_rename: "Rename",
       ctx_transcript: "HTML transcript",
+      ctx_actions: "Actions",
       ctx_hide: "Hide",
       ctx_show: "Show",
       ctx_copy: "Copy ID",
@@ -933,53 +935,39 @@
         item.dataset.popupPath = s.project_path || "";
         item.dataset.popupCmd = `ccview -s ${s.short_id}`;
 
-        const id = document.createElement("div");
-        id.className = "session-id";
-        const left = document.createElement("span");
         const customName = s.name;
-        left.textContent = customName || s.short_id;
-        if (customName) left.classList.add("session-named");
-        const right = document.createElement("span");
-        right.textContent = s.current ? t("session_current_badge") : formatRelative(s.first_event || s.last_event);
-        if (s.current) right.classList.add("current-badge");
-        id.appendChild(left); id.appendChild(right);
-        item.appendChild(id);
+        // header row: [★ favorite] [📌 main] short_id … [☰ actions]
+        const head = document.createElement("div");
+        head.className = "session-head";
 
-        const prev = document.createElement("div");
-        prev.className = "session-preview";
-        prev.textContent = norm ? (norm.length > 30 ? norm.slice(0, 30) + "..." : norm) : t("session_no_prompt");
-        item.appendChild(prev);
+        const faved = isFav(s.id);
+        const fav = document.createElement("button");
+        fav.className = "fav-star" + (faved ? " on" : "");
+        fav.textContent = faved ? "★" : "☆";
+        fav.title = faved ? t("fav_remove") : t("fav_add");
+        fav.addEventListener("click", (e) => { e.stopPropagation(); toggleFav(s); });
 
-        const proj = document.createElement("div");
-        proj.className = "session-project";
-        proj.textContent = s.project_label || s.project || "";
-        item.appendChild(proj);
-
-        const main = document.createElement("button");
         const isMain = s.id === mainID;
-        main.className = "main-btn" + (isMain ? " active" : "");
-        main.textContent = isMain ? "★" : "☆";
+        const main = document.createElement("button");
+        main.className = "main-pin" + (isMain ? " on" : "");
+        main.textContent = "📌";
         main.title = isMain ? t("main_remove") : t("main_add");
-        main.addEventListener("click", (e) => {
-          e.stopPropagation();
-          toggleMain(s.id);
-        });
-        item.appendChild(main);
+        main.addEventListener("click", (e) => { e.stopPropagation(); toggleMain(s.id); });
 
-        const pin = document.createElement("button");
-        pin.className = "pin-btn" + (isFav(s.id) ? " pinned" : "");
-        pin.textContent = isFav(s.id) ? "★" : "☆";
-        pin.title = isFav(s.id) ? t("fav_remove") : t("fav_add");
-        pin.addEventListener("click", (e) => {
-          e.stopPropagation();
-          toggleFav(s);
-        });
-        item.appendChild(pin);
+        const idText = document.createElement("span");
+        idText.className = "session-id-text";
+        idText.textContent = s.short_id;
+        if (s.current) {
+          const badge = document.createElement("span");
+          badge.className = "current-badge";
+          badge.textContent = " · " + t("session_current_badge");
+          idText.appendChild(badge);
+        }
 
         const burger = document.createElement("button");
         burger.className = "session-burger";
         burger.textContent = "☰";
-        burger.title = "Aktionen";
+        burger.title = t("ctx_actions");
         burger.addEventListener("click", (e) => {
           e.stopPropagation();
           if (!ctxMenu.hidden && ctxSession && ctxSession.id === s.id) { closeCtx(); return; }
@@ -990,7 +978,28 @@
           ctxMenu.style.top = Math.min(rb.bottom + 2, window.innerHeight - 170) + "px";
           ctxMenu.hidden = false;
         });
-        item.appendChild(burger);
+
+        head.append(fav, main, idText, burger);
+        item.appendChild(head);
+
+        // custom name below the header, if present
+        if (customName) {
+          const nameEl = document.createElement("div");
+          nameEl.className = "session-name session-named";
+          nameEl.textContent = customName;
+          item.appendChild(nameEl);
+        }
+
+        const prev = document.createElement("div");
+        prev.className = "session-preview";
+        prev.textContent = norm ? (norm.length > 30 ? norm.slice(0, 30) + "..." : norm) : t("session_no_prompt");
+        item.appendChild(prev);
+
+        const proj = document.createElement("div");
+        proj.className = "session-project";
+        const dateStr = formatRelative(s.first_event || s.last_event);
+        proj.textContent = (s.project_label || s.project || "") + (dateStr ? " · " + dateStr : "");
+        item.appendChild(proj);
         if (isActive(s)) {
           const reorder = document.createElement("div");
           reorder.className = "session-reorder";
