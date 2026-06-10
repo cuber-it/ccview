@@ -7,6 +7,8 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-10
+
 ### Changed
 
 - **Per-session resume button.** Each session tile has a ▶ button (left of the
