@@ -56,7 +56,7 @@ func (s *Server) handleProtocol(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.serveProtocolFile(w, sess)
+		s.serveProtocolFile(w, r, sess)
 	case http.MethodPost:
 		var body struct {
 			On bool `json:"on"`
@@ -97,7 +97,7 @@ func (s *Server) setProtocol(sess string, on bool) error {
 
 // serveProtocolFile streams a session's transcript, closing the still-open
 // document on the fly (the file itself stays append-friendly while recording).
-func (s *Server) serveProtocolFile(w http.ResponseWriter, sess string) {
+func (s *Server) serveProtocolFile(w http.ResponseWriter, r *http.Request, sess string) {
 	if s.protocols == nil {
 		http.Error(w, "recorder not ready", http.StatusServiceUnavailable)
 		return
@@ -113,25 +113,48 @@ func (s *Server) serveProtocolFile(w http.ResponseWriter, sess string) {
 	// While recording, make the served document tail itself: reload only while
 	// the reader is at the bottom, so scrolling up to read pauses the refresh.
 	if s.protocols.Active(sess) {
-		fmt.Fprint(w, tailScript)
+		fmt.Fprint(w, tailScript(s.protocolRefreshSecs(r)))
 	}
 	fmt.Fprint(w, export.NewHTMLRenderer().Foot())
 }
 
-// tailScript auto-reloads the transcript while the reader stays at the bottom
-// (a "tail -f" view), and pauses as soon as they scroll up. Injected only for
-// a session that is actively recording.
-const tailScript = `<script>
+// defaultProtocolRefresh is the auto-refresh interval (seconds) used when no
+// config value and no query override are given.
+const defaultProtocolRefresh = 3
+
+// protocolRefreshSecs resolves the auto-refresh interval for a served
+// transcript: the DB config default (protocol_refresh_secs, else 3), overridden
+// by a ?refresh= query value when present. A value <= 0 disables auto-refresh.
+func (s *Server) protocolRefreshSecs(r *http.Request) int {
+	secs := defaultProtocolRefresh
+	if v, ok, _ := s.store.GetConfig("protocol_refresh_secs"); ok {
+		secs = atoiDefault(v, secs)
+	}
+	if q := r.URL.Query().Get("refresh"); q != "" {
+		secs = atoiDefault(q, secs)
+	}
+	return secs
+}
+
+// tailScript returns a "tail -f" script that reloads the transcript every secs
+// seconds, but only while the reader is at the bottom (scrolling up to read
+// pauses it). Returns "" when secs <= 0, disabling auto-refresh entirely.
+func tailScript(secs int) string {
+	if secs <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(`<script>
 (function(){
   function atBottom(){ return window.innerHeight + window.scrollY >= document.body.scrollHeight - 60; }
   if (sessionStorage.getItem('ccviewTail') === '1') window.scrollTo(0, document.body.scrollHeight);
   setInterval(function(){
     if (atBottom()) { sessionStorage.setItem('ccviewTail','1'); location.reload(); }
     else { sessionStorage.setItem('ccviewTail','0'); }
-  }, 3000);
+  }, %d);
 })();
 </script>
-`
+`, secs*1000)
+}
 
 // protocolMeta builds the transcript header metadata for a session.
 func (s *Server) protocolMeta(sessionID, project string, started time.Time) export.Meta {

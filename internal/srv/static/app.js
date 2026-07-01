@@ -19,6 +19,8 @@
       settings_paths_hint: "Verzeichnisse, in denen Claude-Code-Sessions liegen (eines pro Zeile):",
       settings_paths_save: "Pfade übernehmen",
       settings_paths_saved: "Übernommen — lädt neu…",
+      settings_refresh_title: "Protokoll (tail-html)",
+      settings_refresh_hint: "Auto-Refresh des laufenden Protokolls (Sekunden, 0 = aus):",
       close: "Schließen",
       tab_prompts: "Prompts",
       tab_sessions: "Sessions",
@@ -152,6 +154,8 @@
       settings_paths_hint: "Directories where Claude Code sessions live (one per line):",
       settings_paths_save: "Apply paths",
       settings_paths_saved: "Applied — reloading…",
+      settings_refresh_title: "Protocol (tail-html)",
+      settings_refresh_hint: "Auto-refresh of the live protocol (seconds, 0 = off):",
       close: "Close",
       tab_prompts: "Prompts",
       tab_sessions: "Sessions",
@@ -464,7 +468,23 @@
       if (r.ok) { btn.textContent = t("settings_paths_saved"); setTimeout(() => { btn.textContent = t("settings_paths_save"); if (typeof loadSessions === "function") loadSessions(); }, 900); }
     } catch { /* ignore */ }
   };
-  const openSettings = async () => { await refreshProjGroups(); renderSettingsProjects(); loadRootsCfg(); settingsModal.hidden = false; };
+  const settingsRefresh = document.getElementById("settingsRefresh");
+  const loadRefreshCfg = async () => {
+    try {
+      const r = await fetch("/api/config?key=protocol_refresh_secs");
+      if (r.ok) { const d = await r.json(); settingsRefresh.value = (d.value == null ? "3" : d.value); }
+    } catch { /* ignore */ }
+  };
+  const saveRefreshCfg = async () => {
+    const n = Math.max(0, parseInt(settingsRefresh.value, 10) || 0);
+    settingsRefresh.value = n;
+    try {
+      await fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "protocol_refresh_secs", value: String(n) }) });
+    } catch { /* ignore */ }
+  };
+  settingsRefresh.addEventListener("change", saveRefreshCfg);
+  const openSettings = async () => { await refreshProjGroups(); renderSettingsProjects(); loadRootsCfg(); loadRefreshCfg(); settingsModal.hidden = false; };
   const closeSettings = () => { settingsModal.hidden = true; };
   settingsModal.addEventListener("click", (e) => { if (e.target.dataset.modalClose) closeSettings(); });
   document.getElementById("settingsPathsSave").addEventListener("click", (e) => saveRootsCfg(e.target));

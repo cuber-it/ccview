@@ -75,6 +75,10 @@
     <p class="settings-hint" data-i18n="settings_paths_hint">Verzeichnisse, in denen Claude-Code-Sessions liegen (eines pro Zeile):</p>
     <textarea class="settings-paths" id="settingsPaths" rows="3" spellcheck="false"></textarea>
     <button class="settings-paths-save" id="settingsPathsSave" data-i18n="settings_paths_save">Pfade übernehmen</button>
+    <h3 class="settings-sub" data-i18n="settings_refresh_title">Protokoll (tail-html)</h3>
+    <p class="settings-hint" data-i18n="settings_refresh_hint">Auto-Refresh des laufenden Protokolls (Sekunden, 0 = aus):</p>
+    <input class="settings-paths" id="settingsRefresh" type="number" min="0" step="1" style="width:6em">
+
     <p class="settings-hint" data-i18n="settings_proj_hint">Projekt-Gruppen in der Sidebar — Anzeigename, Reihenfolge, Sichtbarkeit:</p>
     <div class="settings-projects" id="settingsProjects"></div>
     <button class="modal-close" data-modal-close="1" data-i18n="close">Schließen</button>

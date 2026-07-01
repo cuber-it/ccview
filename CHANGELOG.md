@@ -21,7 +21,9 @@ Versioning follows [SemVer](https://semver.org/).
   recording even when you switch sessions), survives a server/systemd restart
   (active sessions resume), and is always rebuildable from the JSONL if a marker
   goes stale. "Protokoll öffnen" serves the file; while recording it auto-tails
-  (reloads only while scrolled to the bottom).
+  (reloads only while scrolled to the bottom). The auto-refresh interval is
+  configurable in Settings (seconds, 0 = off) and can be overridden per open
+  with a `?refresh=N` query parameter.
 
 ### Changed
 
