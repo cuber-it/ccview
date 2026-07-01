@@ -41,7 +41,14 @@ CREATE TABLE IF NOT EXISTS project_groups (
   label       TEXT,
   sort_order  INTEGER,
   hidden      INTEGER NOT NULL DEFAULT 0
-);`
+);
+CREATE TABLE IF NOT EXISTS session_tags (
+  session_id TEXT NOT NULL,
+  tag        TEXT NOT NULL,
+  source     TEXT NOT NULL DEFAULT 'manual',
+  PRIMARY KEY (session_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_session_tags_tag ON session_tags(tag);`
 
 // DefaultPath returns the on-disk location of the ccview database, honouring
 // CLAUDE_CONFIG_DIR the same way session.ProjectsDir does, else ~/.claude.
