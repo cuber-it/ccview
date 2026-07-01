@@ -2,7 +2,12 @@ BIN     := ccview
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build test vet race clean cross run
+# deploy target: install location and systemd --user service (override as needed)
+PREFIX  ?= $(HOME)/.local
+BINDIR  := $(PREFIX)/bin
+SERVICE ?= ccview
+
+.PHONY: all build test vet race clean cross run deploy
 
 all: vet test build
 
@@ -32,3 +37,14 @@ cross: clean
 
 run: build
 	./$(BIN)
+
+# deploy: build with the version stamp straight into BINDIR, then atomically
+# replace the installed binary and restart the service. The build+mv avoids
+# ETXTBSY: overwriting the running binary in place (cp) fails, but building a
+# sibling and renaming over it works (the running process keeps the old inode).
+deploy: vet test
+	@mkdir -p $(BINDIR)
+	go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(BIN).new ./cmd/ccview
+	mv -f $(BINDIR)/$(BIN).new $(BINDIR)/$(BIN)
+	systemctl --user restart $(SERVICE)
+	@systemctl --user is-active $(SERVICE) && echo "deployed $(VERSION) → $(BINDIR)/$(BIN)"
