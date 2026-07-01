@@ -7,6 +7,22 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **tail-html — a growing HTML transcript per session, toggle on/off.** Context
+  menu → "Protokoll starten/stoppen" records a session's events into a
+  continuously growing `~/.claude/ccview/protocols/<id>.html` while on, and
+  freezes it when off — turn it on for a long sequence, off, then read it in
+  peace while the session keeps running. Turning it back on **appends onto the
+  existing file** (a resume marker in the HTML says where to continue; the
+  #NNNN numbering carries over) instead of rebuilding, with a visible
+  "Aufnahme fortgesetzt/pausiert" divider marking each window. The recorder
+  tails the JSONL directly (independent of the live viewer, so it keeps
+  recording even when you switch sessions), survives a server/systemd restart
+  (active sessions resume), and is always rebuildable from the JSONL if a marker
+  goes stale. "Protokoll öffnen" serves the file; while recording it auto-tails
+  (reloads only while scrolled to the bottom).
+
 ### Changed
 
 - **Pinned (favorite) sessions are always in the "Active" group, pinned to the

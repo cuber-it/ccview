@@ -19,6 +19,7 @@ import (
 
 	"github.com/cuber-it/ccview/internal/export"
 	"github.com/cuber-it/ccview/internal/parse"
+	"github.com/cuber-it/ccview/internal/protocol"
 	"github.com/cuber-it/ccview/internal/session"
 	"github.com/cuber-it/ccview/internal/store"
 	"github.com/cuber-it/ccview/internal/tail"
@@ -50,6 +51,10 @@ type Server struct {
 	currentID  string
 	pumpCancel context.CancelFunc
 	rootCtx    context.Context
+
+	// protocols records continuously growing "tail.html" transcripts, one per
+	// session being recorded. Created in Serve once the root context exists.
+	protocols *protocol.Manager
 
 	// in-memory transcript cache (no filesystem); invalidated by file modTime.
 	transcriptMu    sync.Mutex
@@ -128,6 +133,7 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("/api/history", s.handleHistory)
 	s.mux.HandleFunc("/api/config", s.handleConfig)
 	s.mux.HandleFunc("/api/transcript", s.handleTranscript)
+	s.mux.HandleFunc("/api/protocol", s.handleProtocol)
 	return s
 }
 
@@ -148,6 +154,7 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener, initial *session.In
 	s.mu.Lock()
 	s.rootCtx = ctx
 	s.mu.Unlock()
+	s.initProtocols(ctx)
 	if initial != nil {
 		if err := s.SetSession(*initial); err != nil {
 			return err
@@ -160,6 +167,9 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener, initial *session.In
 	}
 	go func() {
 		<-ctx.Done()
+		if s.protocols != nil {
+			s.protocols.StopAll() // flush every open transcript before exit
+		}
 		shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutCtx)
@@ -294,6 +304,7 @@ type sessionDTO struct {
 	Name         string    `json:"name,omitempty"`
 	Favorite     bool      `json:"favorite"`
 	Done         bool      `json:"done"`
+	Recording    bool      `json:"recording"`
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
@@ -330,6 +341,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
 			Name:         meta[si.ID].Name,
 			Favorite:     meta[si.ID].Favorite,
 			Done:         meta[si.ID].Done,
+			Recording:    s.protocols != nil && s.protocols.Active(si.ID),
 		})
 	}
 	writeJSON(w, out)

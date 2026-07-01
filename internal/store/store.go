@@ -48,7 +48,14 @@ CREATE TABLE IF NOT EXISTS session_tags (
   source     TEXT NOT NULL DEFAULT 'manual',
   PRIMARY KEY (session_id, tag)
 );
-CREATE INDEX IF NOT EXISTS idx_session_tags_tag ON session_tags(tag);`
+CREATE INDEX IF NOT EXISTS idx_session_tags_tag ON session_tags(tag);
+CREATE TABLE IF NOT EXISTS session_protocol (
+  session_id     TEXT PRIMARY KEY,
+  active         INTEGER NOT NULL DEFAULT 0,
+  events_written INTEGER NOT NULL DEFAULT 0,
+  prompt_num     INTEGER NOT NULL DEFAULT 0,
+  updated_at     TEXT
+);`
 
 // DefaultPath returns the on-disk location of the ccview database, honouring
 // CLAUDE_CONFIG_DIR the same way session.ProjectsDir does, else ~/.claude.

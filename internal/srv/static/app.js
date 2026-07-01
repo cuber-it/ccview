@@ -72,6 +72,9 @@
       ctx_fav: "Favorit",
       ctx_rename: "Umbenennen",
       ctx_transcript: "HTML-Transkript",
+      ctx_protocol_start: "Protokoll starten ▶",
+      ctx_protocol_stop: "Protokoll stoppen ⏹",
+      ctx_protocol_open: "Protokoll öffnen",
       ctx_actions: "Aktionen",
       resume_copy_t: "Resume-Befehl kopieren (cd && claude --resume)",
       ctx_hide: "Ausblenden",
@@ -202,6 +205,9 @@
       ctx_fav: "Favorite",
       ctx_rename: "Rename",
       ctx_transcript: "HTML transcript",
+      ctx_protocol_start: "Start protocol ▶",
+      ctx_protocol_stop: "Stop protocol ⏹",
+      ctx_protocol_open: "Open protocol",
       ctx_actions: "Actions",
       resume_copy_t: "Copy resume command (cd && claude --resume)",
       ctx_hide: "Hide",
@@ -1054,8 +1060,10 @@
   const ctxMenu = document.getElementById("sessionCtx");
   let ctxSession = null;
   const ctxDoneBtn = ctxMenu.querySelector('button[data-act="done"]');
+  const ctxProtoBtn = ctxMenu.querySelector('button[data-act="protocol-toggle"]');
   const updateCtxDoneLabel = () => {
     if (ctxDoneBtn && ctxSession) ctxDoneBtn.textContent = ctxSession.done ? t("ctx_show") : t("ctx_hide");
+    if (ctxProtoBtn && ctxSession) ctxProtoBtn.textContent = ctxSession.recording ? t("ctx_protocol_stop") : t("ctx_protocol_start");
   };
   const setSessionName = async (id, name) => {
     await fetch("/api/session-meta", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -1073,7 +1081,7 @@
     ctxSession = (lastSessionsData || []).find(s => s.id === item.dataset.fullId) || { id: item.dataset.fullId };
     updateCtxDoneLabel();
     ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 180) + "px";
-    ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 170) + "px";
+    ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 230) + "px";
     ctxMenu.hidden = false;
   });
   ctxMenu.addEventListener("click", (e) => {
@@ -1087,6 +1095,13 @@
       setSessionDone(s.id, !s.done).then(loadSessions);
     } else if (b.dataset.act === "transcript") {
       window.open("/api/transcript?session=" + encodeURIComponent(s.id), "_blank");
+    } else if (b.dataset.act === "protocol-toggle") {
+      fetch("/api/protocol?session=" + encodeURIComponent(s.id), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on: !s.recording }),
+      }).then(r => { if (r.ok) loadSessions(); });
+    } else if (b.dataset.act === "protocol-open") {
+      window.open("/api/protocol?session=" + encodeURIComponent(s.id), "_blank");
     } else if (b.dataset.act === "copy") {
       navigator.clipboard.writeText(s.id);
     } else if (b.dataset.act === "fav") {

@@ -14,31 +14,68 @@ import (
 // session natively in one pass (no JS, no incremental rendering) — fast even
 // for huge sessions, and fully searchable with Ctrl-F or printable to PDF.
 func HTML(meta Meta, events []parse.Event) string {
+	r := NewHTMLRenderer()
+	var b strings.Builder
+	b.WriteString(r.Head(meta, len(events)))
+	for _, ev := range events {
+		b.WriteString(r.Event(ev))
+	}
+	b.WriteString(r.Foot())
+	return b.String()
+}
+
+// HTMLRenderer renders an HTML transcript incrementally, keeping the running
+// prompt number so a transcript can be appended to over time (the protocol
+// recorder writes a session's events as they arrive, across on/off windows).
+// Head, then one Event per event, then Foot, produce exactly what HTML does.
+type HTMLRenderer struct {
+	promptNum int
+}
+
+// NewHTMLRenderer returns a renderer with the prompt counter at zero.
+func NewHTMLRenderer() *HTMLRenderer { return &HTMLRenderer{} }
+
+// PromptNum returns the running prompt count — persist it as a resume marker so
+// the #NNNN numbering continues correctly when appending to an existing file.
+func (r *HTMLRenderer) PromptNum() int { return r.promptNum }
+
+// SetPromptNum restores the running prompt count when resuming a transcript.
+func (r *HTMLRenderer) SetPromptNum(n int) { r.promptNum = n }
+
+// Head returns the document head up to (but excluding) the first event:
+// doctype, inline style, and the session header. nEvents is only used for the
+// "N Events" line, so for a growing file it reflects the count at head time.
+func (r *HTMLRenderer) Head(meta Meta, nEvents int) string {
 	var b strings.Builder
 	b.WriteString("<!doctype html>\n<html lang=\"de\">\n<head>\n<meta charset=\"utf-8\">\n")
 	b.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
 	fmt.Fprintf(&b, "<title>ccview · %s</title>\n", html.EscapeString(shortID(meta.SessionID)))
 	b.WriteString(htmlStyle)
 	b.WriteString("</head>\n<body>\n")
-	htmlHeader(&b, meta, len(events))
-
-	promptNum := 0
-	for _, ev := range events {
-		switch ev.Kind {
-		case parse.KindUser:
-			if firstKind(ev) == parse.BlockUserPrompt {
-				promptNum++
-				htmlUserPrompt(&b, ev, promptNum)
-			} else {
-				htmlToolResults(&b, ev)
-			}
-		case parse.KindAssistant:
-			htmlAssistant(&b, ev)
-		}
-	}
-	b.WriteString("</body>\n</html>\n")
+	htmlHeader(&b, meta, nEvents)
 	return b.String()
 }
+
+// Event returns the HTML fragment for one event (empty for kinds that render
+// nothing). User prompts advance the running prompt number.
+func (r *HTMLRenderer) Event(ev parse.Event) string {
+	var b strings.Builder
+	switch ev.Kind {
+	case parse.KindUser:
+		if firstKind(ev) == parse.BlockUserPrompt {
+			r.promptNum++
+			htmlUserPrompt(&b, ev, r.promptNum)
+		} else {
+			htmlToolResults(&b, ev)
+		}
+	case parse.KindAssistant:
+		htmlAssistant(&b, ev)
+	}
+	return b.String()
+}
+
+// Foot returns the closing tags for a finished document.
+func (r *HTMLRenderer) Foot() string { return "</body>\n</html>\n" }
 
 const htmlStyle = `<style>
 :root{--fg:#1e1e1e;--muted:#6a6a6a;--border:#e3e3e3;--bg:#fff;--code-bg:#f5f5f5;--user:#0b66c3;--tool:#7a3e9d}

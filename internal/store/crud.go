@@ -225,6 +225,9 @@ func (s *Store) DeleteMeta(sessionID string) error {
 	if _, err := tx.Exec(`DELETE FROM notes WHERE session_id=?`, sessionID); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(`DELETE FROM session_protocol WHERE session_id=?`, sessionID); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
