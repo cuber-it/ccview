@@ -714,10 +714,17 @@
     return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
   };
 
-  // start–last span in short date form, collapsed to one when the same day.
+  // start–last span. Same day → date + time range (so start AND end stay
+  // visible, never a single ambiguous date); different days → date–date.
   const formatSpan = (first, last) => {
     const a = formatDateShort(first), b = formatDateShort(last);
-    if (a && b) return a === b ? a : a + "–" + b;
+    if (a && b) {
+      if (a === b) {
+        const tm = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        return a + " " + tm(first) + "–" + tm(last);
+      }
+      return a + "–" + b;
+    }
     return a || b;
   };
 
