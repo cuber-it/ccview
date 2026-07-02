@@ -22,6 +22,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
+# Playwright MCP scratch (screenshots, snapshots, console logs)
+.playwright-mcp/
+
 # Editor / OS
 .idea/
 .vscode/

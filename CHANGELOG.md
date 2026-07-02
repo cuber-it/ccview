@@ -24,9 +24,14 @@ Versioning follows [SemVer](https://semver.org/).
   (reloads only while scrolled to the bottom). The auto-refresh interval is
   configurable in Settings (seconds, 0 = off) and can be overridden per open
   with a `?refresh=N` query parameter.
+- **Session start and last-event times** (date & time) in the sidebar hover
+  popup, read from the JSONL content (stable across cross-writes).
 
 ### Changed
 
+- **Named sessions get their own group at the very top** of the sidebar, sorted
+  alphabetically, and are excluded from the "Active" and per-project groups
+  (a session with a custom title no longer appears twice).
 - **Pinned (favorite) sessions are always in the "Active" group, pinned to the
   top** — not only when they have activity today. They stay there from pinning
   until you unpin, and remain reorderable among themselves (▲▼).

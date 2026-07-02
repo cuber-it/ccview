@@ -13,8 +13,13 @@ A single Go binary (~5 MB). No runtime, no dependencies.
 - **Live tail** of any session in the browser, via SSE
 - **Session browser** across all projects, runtime switching with a click
 - **Multiple project roots** scanned together, managed in the Settings dialog
-- **Grouped sidebar** (Active + per-project, collapsible) with resizable width,
-  filter, auto-refresh, and per-session rename
+- **Grouped sidebar** (Named on top + Active + per-project, collapsible) with
+  resizable width, filter, auto-refresh, and per-session rename — named sessions
+  form their own alphabetical group at the very top
+- **tail-html**: toggle a continuously growing HTML transcript per session on/off
+  (context menu → "Protokoll"); resumes onto the existing file when re-enabled,
+  survives a restart, auto-tails while open (interval configurable in Settings)
+- **Session times** (start + last event, date & time) in the hover popup
 - **Cross-session search**: regex over the current session, all sessions, or all
   notes — with hit counts and activity days
 - **Done marker** + filter to hide finished sessions; **delete** moves the JSONL

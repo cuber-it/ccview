@@ -64,6 +64,8 @@
       session_current_badge: "offen",
       session_no_prompt: "(kein Prompt)",
       session_no_prompt_tooltip: "(kein Prompt gefunden)",
+      popup_start: "Start",
+      popup_last: "Zuletzt",
       save_as_prompt: "Dateiname oder Pfad (leer = Default):",
       save_ok: "gespeichert: ${path}",
       save_error: "Export-Fehler: ${err}",
@@ -199,6 +201,8 @@
       session_current_badge: "open",
       session_no_prompt: "(no prompt)",
       session_no_prompt_tooltip: "(no prompt found)",
+      popup_start: "Start",
+      popup_last: "Last",
       save_as_prompt: "Filename or path (blank = default):",
       save_ok: "saved: ${path}",
       save_error: "Export error: ${err}",
@@ -713,6 +717,15 @@
     return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
   };
 
+  // Absolute local date + time, e.g. "12.06.2026 05:51" (empty for zero/invalid).
+  const formatDateTime = (iso) => {
+    if (!iso || iso.startsWith("0001-01-01")) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("de-DE", { year: "numeric", month: "2-digit", day: "2-digit" })
+      + " " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  };
+
   const isToday = (iso) => {
     if (!iso || iso.startsWith("0001-01-01")) return false;
     const d = new Date(iso);
@@ -972,7 +985,9 @@
         const norm = (s.first_prompt || "").replace(/\s+/g, " ").trim();
         item.dataset.popupTitle = s.short_id + (s.current ? " · " + t("session_current_badge") : "");
         item.dataset.popupBody = norm || t("session_no_prompt_tooltip");
-        item.dataset.popupMeta = (s.project_label || "") + (s.first_event ? " · start " + formatRelative(s.first_event) : "");
+        item.dataset.popupMeta = s.project_label || "";
+        item.dataset.popupStart = formatDateTime(s.first_event);
+        item.dataset.popupLast = formatDateTime(s.last_event);
         item.dataset.popupPath = s.project_path || "";
         item.dataset.popupCmd = `ccview -s ${s.short_id}`;
 
@@ -1726,11 +1741,12 @@
   // ---------- hover popup ----------
   const popup = document.createElement("div");
   popup.className = "popup";
-  popup.innerHTML = '<div class="popup-meta"><span class="popup-title"></span><span class="popup-extra"></span></div><div class="popup-path"></div><div class="popup-body"></div><div class="popup-cmd" style="display:none"></div>';
+  popup.innerHTML = '<div class="popup-meta"><span class="popup-title"></span><span class="popup-extra"></span></div><div class="popup-path"></div><div class="popup-times"></div><div class="popup-body"></div><div class="popup-cmd" style="display:none"></div>';
   document.body.appendChild(popup);
   const popupTitle = popup.querySelector(".popup-title");
   const popupExtra = popup.querySelector(".popup-extra");
   const popupPath  = popup.querySelector(".popup-path");
+  const popupTimes = popup.querySelector(".popup-times");
   const popupBody  = popup.querySelector(".popup-body");
   const popupCmd   = popup.querySelector(".popup-cmd");
 
@@ -1741,10 +1757,17 @@
     const meta  = el.dataset.popupMeta  || "";
     const path  = el.dataset.popupPath  || "";
     const cmd   = el.dataset.popupCmd   || "";
+    const start = el.dataset.popupStart || "";
+    const last  = el.dataset.popupLast  || "";
     popupTitle.textContent = title;
     popupExtra.textContent = meta;
     popupPath.textContent = path;
     popupPath.style.display = path ? "" : "none";
+    const timeBits = [];
+    if (start) timeBits.push(t("popup_start") + ": " + start);
+    if (last)  timeBits.push(t("popup_last") + ": " + last);
+    popupTimes.textContent = timeBits.join("  ·  ");
+    popupTimes.style.display = timeBits.length ? "" : "none";
     popupBody.textContent  = body.length > 600 ? body.slice(0, 600) + " …" : body;
     if (cmd) { popupCmd.textContent = cmd; popupCmd.style.display = ""; }
     else     { popupCmd.style.display = "none"; }
