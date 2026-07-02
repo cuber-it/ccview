@@ -835,10 +835,16 @@
     saveActiveOrder(arr);
     loadSessions();
   };
+  const hasName = (s) => !!(s.name && s.name.trim());
   const renderSessionGroups = (list, buildItem) => {
-    const active = sortActive(list.filter(isActive));
+    // Named sessions form their own group at the very top, sorted alphabetically,
+    // and are excluded from Active and the project groups below.
+    const named = list.filter(hasName)
+      .sort((a, b) => a.name.trim().localeCompare(b.name.trim(), undefined, { sensitivity: "base" }));
+    const unnamed = list.filter(s => !hasName(s));
+    const active = sortActive(unnamed.filter(isActive));
     currentActiveIds = active.map(s => s.id);
-    const rest = list.filter(s => !isActive(s));
+    const rest = unnamed.filter(s => !isActive(s));
     list.forEach(s => knownProjects.set(s.project || "—", s.project_label || s.project || "—"));
     const addGroup = (label, items, key) => {
       const head = groupHeader(label, items.length, key);
@@ -855,6 +861,7 @@
         head.classList.toggle("collapsed", !willOpen);
       });
     };
+    if (named.length) addGroup(lang === "en" ? "Named" : "Benannt", named, null);
     if (active.length) addGroup(lang === "en" ? "Active" : "Aktiv", active, null);
     const cfg = loadProjCfg();
     const groups = new Map();
