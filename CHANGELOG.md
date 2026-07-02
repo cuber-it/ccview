@@ -7,6 +7,8 @@ Versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-02
+
 ### Added
 
 - **tail-html — a growing HTML transcript per session, toggle on/off.** Context
@@ -290,7 +292,9 @@ runtime session switching, favorites, and markdown export.
 - No config file — everything is either a CLI flag or `localStorage`
   (theme, language, sidepanel state, favorites, main session, last session, tab)
 
-[Unreleased]: https://github.com/cuber-it/ccview/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/cuber-it/ccview/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/cuber-it/ccview/releases/tag/v0.4.0
+[0.3.3]: https://github.com/cuber-it/ccview/releases/tag/v0.3.3
 [0.3.2]: https://github.com/cuber-it/ccview/releases/tag/v0.3.2
 [0.3.1]: https://github.com/cuber-it/ccview/releases/tag/v0.3.1
 [0.3.0]: https://github.com/cuber-it/ccview/releases/tag/v0.3.0
