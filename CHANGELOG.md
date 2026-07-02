@@ -25,7 +25,9 @@ Versioning follows [SemVer](https://semver.org/).
   configurable in Settings (seconds, 0 = off) and can be overridden per open
   with a `?refresh=N` query parameter.
 - **Session start and last-event times** (date & time) in the sidebar hover
-  popup, read from the JSONL content (stable across cross-writes).
+  popup, read from the JSONL content (stable across cross-writes). The tile line
+  next to the project path now shows the start–last date span (`dd.mm.yy`,
+  collapsed to one date for a single day) instead of a single relative stamp.
 
 ### Changed
 

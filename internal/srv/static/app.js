@@ -706,15 +706,19 @@
   const sessionList = document.getElementById("sessionList");
   let sessionsLoaded = false;
 
-  const formatRelative = (iso) => {
+  // Short local date, e.g. "12.06.26" (empty for zero/invalid).
+  const formatDateShort = (iso) => {
     if (!iso || iso.startsWith("0001-01-01")) return "";
     const d = new Date(iso);
-    const diff = (Date.now() - d.getTime()) / 1000;
-    if (diff < 60)     return t("rel_now");
-    if (diff < 3600)   return Math.floor(diff / 60) + "m";
-    if (diff < 86400)  return Math.floor(diff / 3600) + "h";
-    if (diff < 604800) return Math.floor(diff / 86400) + "d";
-    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  };
+
+  // start–last span in short date form, collapsed to one when the same day.
+  const formatSpan = (first, last) => {
+    const a = formatDateShort(first), b = formatDateShort(last);
+    if (a && b) return a === b ? a : a + "–" + b;
+    return a || b;
   };
 
   // Absolute local date + time, e.g. "12.06.2026 05:51" (empty for zero/invalid).
@@ -1067,7 +1071,7 @@
 
         const proj = document.createElement("div");
         proj.className = "session-project";
-        const dateStr = formatRelative(s.first_event || s.last_event);
+        const dateStr = formatSpan(s.first_event, s.last_event);
         proj.textContent = (s.project_label || s.project || "") + (dateStr ? " · " + dateStr : "");
         item.appendChild(proj);
         if (isActive(s)) {
